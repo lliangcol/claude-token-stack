@@ -10,7 +10,7 @@ DRY_RUN=0
 EXPLICIT_PHASES=()
 
 permission_mode_lc="${PERMISSION_MODE:-auto}"
-permission_mode_lc="${permission_mode_lc,,}"
+permission_mode_lc="$(printf '%s\n' "$permission_mode_lc" | tr '[:upper:]' '[:lower:]')"
 case "$permission_mode_lc" in
   *bypass*|*dangerously*|*skip*)
     echo "Refusing unsafe PERMISSION_MODE=${PERMISSION_MODE:-auto}" >&2
