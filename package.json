@@ -1,0 +1,56 @@
+{
+  "name": "claude-token-stack",
+  "version": "0.1.0",
+  "description": "Cross-platform Claude Code token governance kit with hooks, policies, validation, and benchmarks.",
+  "license": "MIT",
+  "type": "commonjs",
+  "author": "Claude Token Stack Contributors",
+  "bin": {
+    "claude-token-stack": "bin/cts.js",
+    "cts": "bin/cts.js"
+  },
+  "files": [
+    "bin/*.js",
+    "bin/*.sh",
+    "bin/*.py",
+    "bin/*.ps1",
+    "templates/.claude/settings.json",
+    "templates/.claude/settings.local.unattended.example.json",
+    "templates/.claude/token-policy.md",
+    "templates/.claude/hooks/*.js",
+    "templates/.claude/hooks/*.py",
+    "templates/.claude/output-styles/*.md",
+    "templates/docs/*.md",
+    "docs/**/*.md",
+    "benchmarks/*.md",
+    "prompts/AGENT_MASTER_PROMPT.md",
+    "README.md",
+    "LICENSE",
+    "ARCHITECTURE.md",
+    "SECURITY.md",
+    "ROADMAP.md"
+  ],
+  "scripts": {
+    "check:node": "node --check bin/cts.js && node --check templates/.claude/hooks/run-python-hook.js",
+    "check:python": "python -m py_compile templates/.claude/hooks/bash-token-guard.py templates/.claude/hooks/cbm-gate.py bin/collect-metrics.py bin/compare-metrics.py",
+    "check:shell": "bash -n bin/install-claude-token-stack.sh && bash -n bin/verify-claude-token-stack.sh && bash -n bin/run-token-benchmark.sh && bash -n bin/cts-run-agent-unattended.sh",
+    "check:templates": "node -e \"const fs=require('fs'); const files=['templates/.claude/settings.json','templates/.claude/token-policy.md','templates/.claude/hooks/run-python-hook.js','templates/.claude/hooks/bash-token-guard.py','templates/.claude/hooks/cbm-gate.py','templates/.claude/output-styles/token-lean.md','templates/docs/claude-token-stack.md','templates/docs/claude-token-stack-rollback.md']; for (const f of files) { if (!fs.existsSync(f)) throw new Error(f+' missing'); } JSON.parse(fs.readFileSync('templates/.claude/settings.json','utf8'));\"",
+    "test:hooks": "node tests/smoke/hook-smoke.test.js",
+    "test:helpers": "node tests/smoke/helper-scripts.test.js",
+    "verify": "node bin/cts.js verify --target .tmp/verify-fixture",
+    "benchmark": "bash bin/run-token-benchmark.sh post dry-run",
+    "lint": "npm run check:node && npm run check:python && npm run check:shell && npm run check:templates",
+    "test": "npm run lint && npm run test:hooks && npm run test:helpers && node bin/cts.js scaffold --target .tmp/verify-fixture && npm run verify"
+  },
+  "keywords": [
+    "claude-code",
+    "ai-coding",
+    "token",
+    "mcp",
+    "hooks",
+    "devtools"
+  ],
+  "engines": {
+    "node": ">=18"
+  }
+}

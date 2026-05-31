@@ -1,0 +1,136 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - master
+
+jobs:
+  test:
+    name: core validation (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - macos-latest
+          - windows-latest
+
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          if [[ -f package-lock.json ]]; then
+            npm ci
+          else
+            npm install
+          fi
+
+      - name: Static checks
+        run: |
+          node --check bin/cts.js
+          node --check templates/.claude/hooks/run-python-hook.js
+          python -m py_compile templates/.claude/hooks/bash-token-guard.py templates/.claude/hooks/cbm-gate.py bin/collect-metrics.py bin/compare-metrics.py
+          bash -n bin/install-claude-token-stack.sh
+          bash -n bin/verify-claude-token-stack.sh
+          bash -n bin/run-token-benchmark.sh
+          bash -n bin/cts-run-agent-unattended.sh
+          node -e "JSON.parse(require('fs').readFileSync('templates/.claude/settings.json', 'utf8'))"
+
+      - name: Hook smoke tests
+        run: npm run test:hooks
+
+      - name: Helper script tests
+        run: npm run test:helpers
+
+      - name: Scaffold dry-run
+        run: |
+          rm -rf .tmp/ci-scaffold-dry-run
+          node bin/cts.js scaffold --target ".tmp/ci-scaffold-dry-run path" --dry-run
+
+      - name: Scaffold with remote install disabled
+        run: |
+          export TOKEN_STACK_ALLOW_REMOTE_INSTALL=0
+          export CTS_TARGET_DIR="$(pwd)/.tmp/ci-scaffold-remote-disabled"
+          rm -rf "$CTS_TARGET_DIR"
+          mkdir -p "$CTS_TARGET_DIR"
+          bash bin/install-claude-token-stack.sh scaffold
+
+      - name: Verify scaffold without Claude login
+        run: |
+          export CTS_TARGET_DIR="$(pwd)/.tmp/ci-scaffold-remote-disabled"
+          bash bin/verify-claude-token-stack.sh all
+
+      - name: Synthetic benchmark report
+        run: |
+          export CTS_TARGET_DIR="$(pwd)/.tmp/ci-scaffold-remote-disabled"
+          bash bin/run-token-benchmark.sh post synthetic-only
+
+      - name: Windows hook path and block-mode check
+        if: runner.os == 'Windows'
+        env:
+          TOKEN_GUARD_MODE: block
+        run: |
+          spaced_root=".tmp/ci windows path"
+          rm -rf "$spaced_root"
+          mkdir -p "$spaced_root/.claude/logs"
+          set +e
+          printf '%s\n' '{"tool_name":"Bash","tool_input":{"command":"tree"}}' \
+            | CLAUDE_PROJECT_DIR="$spaced_root" node templates/.claude/hooks/run-python-hook.js templates/.claude/hooks/bash-token-guard.py
+          status=$?
+          set -e
+          if [[ "$status" -ne 2 ]]; then
+            echo "Expected TOKEN_GUARD_MODE=block to exit 2, got $status" >&2
+            exit 1
+          fi
+
+      - name: Collect CI artifacts
+        if: always()
+        run: |
+          mkdir -p ci-artifacts
+          cp .tmp/ci-scaffold-remote-disabled/.token-stack/reports/verify-report.json ci-artifacts/verify-report.json 2>/dev/null || true
+          cp .tmp/ci-scaffold-remote-disabled/.token-stack/reports/install-report.json ci-artifacts/install-report.json 2>/dev/null || true
+          mkdir -p ci-artifacts/benchmark
+          cp .tmp/ci-scaffold-remote-disabled/.token-stack/reports/post/*.json ci-artifacts/benchmark/ 2>/dev/null || true
+          cp .tmp/ci-scaffold-remote-disabled/.token-stack/reports/post/benchmark.md ci-artifacts/benchmark/ 2>/dev/null || true
+
+      - name: Upload verify report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: verify-report-${{ matrix.os }}
+          path: ci-artifacts/verify-report.json
+          if-no-files-found: warn
+
+      - name: Upload install report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: install-report-${{ matrix.os }}
+          path: ci-artifacts/install-report.json
+          if-no-files-found: warn
+
+      - name: Upload benchmark synthetic report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-synthetic-report-${{ matrix.os }}
+          path: ci-artifacts/benchmark
+          if-no-files-found: warn

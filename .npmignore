@@ -1,0 +1,7 @@
+_seed/
+.tmp/
+.token-stack/
+.claude/logs/
+__pycache__/
+*.py[cod]
+npm-debug.log*

@@ -1,0 +1,11 @@
+{
+  "env": {
+    "PERMISSION_MODE": "auto",
+    "MAX_TURNS": "80",
+    "MAX_BUDGET_USD": "15.00",
+    "TOKEN_GUARD_MODE": "warn",
+    "CBM_GATE_MODE": "warn",
+    "ENABLE_HEADROOM": "0",
+    "TOKEN_STACK_ALLOW_REMOTE_INSTALL": "0"
+  }
+}
