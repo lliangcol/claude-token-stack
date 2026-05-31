@@ -1,0 +1,22 @@
+{
+  "_comment": "Optional local MCP template for token/context governance smoke only. Pin reviewed versions before use.",
+  "mcpServers": {
+    "codebase-memory-mcp": {
+      "command": "npx",
+      "args": ["-y", "codebase-memory-mcp@REVIEWED_VERSION"],
+      "env": {
+        "CBM_READ_ONLY": "1",
+        "CBM_CACHE_DIR": ".token-stack/mcp-cache/codebase-memory-mcp",
+        "CBM_RATE_LIMIT": "local"
+      }
+    },
+    "context-mode": {
+      "command": "npx",
+      "args": ["-y", "context-mode@REVIEWED_VERSION"],
+      "env": {
+        "CONTEXT_MODE_READ_ONLY": "1",
+        "CONTEXT_MODE_CACHE_DIR": ".token-stack/mcp-cache/context-mode"
+      }
+    }
+  }
+}

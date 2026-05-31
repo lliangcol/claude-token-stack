@@ -25,6 +25,8 @@ assert.match(shellScript, /TOKEN_STACK_ALLOW_UNPINNED_REMOTE_INSTALL/, "remote n
 assert.match(shellScript, /run_optional_npm_global/, "remote npm installs should route through the pinning guard");
 assert.match(shellScript, /backup_file "\$dst"/, "shell scaffold should backup existing template destinations before overwrite");
 assert.match(shellScript, /configure_codebase_memory_mcp/, "remote codebase-memory-mcp install should run MCP setup when command becomes available");
+assert.match(shellScript, /mcp-local-smoke\.md/, "shell scaffold should include local MCP smoke docs");
+assert.match(shellScript, /context-pack-template\.md/, "shell scaffold should include context pack template");
 assert.ok(
   !/verify-claude-token-stack\.sh"\s*\|\|\s*record/.test(shellScript),
   "all mode must not swallow verify failures"
@@ -35,6 +37,7 @@ const packageJson = JSON.parse(fs.readFileSync(path.join(repoRoot, "package.json
 assert.ok(!packageJson.homepage, "package metadata should not point to an unpublished homepage");
 assert.ok(!packageJson.repository, "package metadata should not point to an unpublished repository");
 assert.ok(!packageJson.bugs, "package metadata should not point to unpublished issue tracker");
+assert.ok(packageJson.files.includes("templates/.mcp.local.example.json"), "package should include local MCP template");
 
 const unattendedRunner = fs.readFileSync(path.join(repoRoot, "bin", "cts-run-agent-unattended.sh"), "utf8");
 const benchmarkRunner = fs.readFileSync(path.join(repoRoot, "bin", "run-token-benchmark.sh"), "utf8");
@@ -47,6 +50,7 @@ assert.ok(!publicResearchPlan.includes("_seed/"), "public execution plan summary
 assert.ok(!publicResearchReport.includes("_seed/"), "public research summary should not link to unpublished seed files");
 
 const templateRunner = fs.readFileSync(path.join(repoRoot, "templates", ".claude", "hooks", "run-python-hook.js"), "utf8");
+const templateSettings = JSON.parse(fs.readFileSync(path.join(repoRoot, "templates", ".claude", "settings.json"), "utf8"));
 const projectRunnerPath = path.join(repoRoot, ".claude", "hooks", "run-python-hook.js");
 if (fs.existsSync(projectRunnerPath)) {
   assert.strictEqual(
@@ -77,6 +81,9 @@ const backupNames = fs.readdirSync(path.dirname(invalidSettingsPath)).filter((na
 assert.ok(backupNames.length > 0, "invalid settings should be backed up before template merge");
 assert.strictEqual(fs.readFileSync(path.join(path.dirname(invalidSettingsPath), backupNames[0]), "utf8"), "{ invalid json");
 assert.match(fs.readFileSync(path.join(scaffoldTarget, ".gitignore"), "utf8"), /^\.token-stack\/$/m);
+assert.ok(fs.existsSync(path.join(scaffoldTarget, ".mcp.local.example.json")), "scaffold should copy local MCP template");
+assert.ok(fs.existsSync(path.join(scaffoldTarget, "docs", "mcp-local-smoke.md")), "scaffold should copy local MCP smoke docs");
+assert.ok(fs.existsSync(path.join(scaffoldTarget, "docs", "context-pack-template.md")), "scaffold should copy context pack template");
 const policyBackupNames = fs.readdirSync(path.dirname(existingPolicyPath)).filter((name) => name.startsWith("token-policy.md.bak."));
 assert.ok(policyBackupNames.length > 0, "existing template destination should be backed up before overwrite");
 assert.strictEqual(
@@ -104,6 +111,182 @@ assert.deepStrictEqual(
   settingsBackupsAfterSecondScaffold.sort(),
   settingsBackupsBeforeSecondScaffold.sort(),
   "idempotent settings merge should not create another backup"
+);
+
+function clone(value) {
+  return JSON.parse(JSON.stringify(value));
+}
+
+function countTokenHooks(settings) {
+  const expected = {
+    Bash: "bash-token-guard.py",
+    Read: "cbm-gate.py",
+    Grep: "cbm-gate.py",
+    Glob: "cbm-gate.py",
+  };
+  const counts = Object.fromEntries(Object.keys(expected).map((matcher) => [matcher, 0]));
+  for (const entry of settings.hooks?.PreToolUse || []) {
+    for (const hook of entry.hooks || []) {
+      if (expected[entry.matcher] && String(hook.command || "").includes(expected[entry.matcher])) {
+        counts[entry.matcher] += 1;
+      }
+    }
+  }
+  return counts;
+}
+
+const existingHooksTarget = path.join(tempRoot, "existing token hooks");
+fs.mkdirSync(path.join(existingHooksTarget, ".claude"), { recursive: true });
+fs.writeFileSync(
+  path.join(existingHooksTarget, ".claude", "settings.json"),
+  JSON.stringify(templateSettings, null, 2),
+  "utf8"
+);
+const existingHooksScaffold = spawnSync(
+  process.execPath,
+  [path.join(repoRoot, "bin", "cts.js"), "scaffold", "--target", existingHooksTarget],
+  { encoding: "utf8" }
+);
+assert.strictEqual(
+  existingHooksScaffold.status,
+  0,
+  `scaffold with existing token hooks failed\nstdout:\n${existingHooksScaffold.stdout}\nstderr:\n${existingHooksScaffold.stderr}`
+);
+const existingHooksSettings = JSON.parse(fs.readFileSync(path.join(existingHooksTarget, ".claude", "settings.json"), "utf8"));
+assert.deepStrictEqual(
+  countTokenHooks(existingHooksSettings),
+  { Bash: 1, Read: 1, Grep: 1, Glob: 1 },
+  "scaffold should not add duplicate token hooks when target already has them"
+);
+
+const shellInstallerExistingHookTarget = path.join(repoRoot, ".tmp", `helper-shell-existing-hook-${Date.now()}`);
+fs.mkdirSync(path.join(shellInstallerExistingHookTarget, ".claude"), { recursive: true });
+fs.writeFileSync(
+  path.join(shellInstallerExistingHookTarget, ".claude", "settings.json"),
+  JSON.stringify(
+    {
+      hooks: {
+        PreToolUse: [
+          {
+            matcher: "Bash",
+            hooks: [{ type: "command", command: "python .claude/hooks/bash-token-guard.py --custom" }],
+          },
+        ],
+      },
+    },
+    null,
+    2
+  ),
+  "utf8"
+);
+const shellInstallerExistingHookResult = spawnSync(
+  process.execPath,
+  [path.join(repoRoot, "bin", "cts.js"), "all", "--target", shellInstallerExistingHookTarget],
+  { encoding: "utf8" }
+);
+assert.strictEqual(
+  shellInstallerExistingHookResult.status,
+  0,
+  `shell installer existing hook path failed\nstdout:\n${shellInstallerExistingHookResult.stdout}\nstderr:\n${shellInstallerExistingHookResult.stderr}`
+);
+const shellInstallerExistingHookSettings = JSON.parse(
+  fs.readFileSync(path.join(shellInstallerExistingHookTarget, ".claude", "settings.json"), "utf8")
+);
+assert.deepStrictEqual(
+  countTokenHooks(shellInstallerExistingHookSettings),
+  { Bash: 1, Read: 1, Grep: 1, Glob: 1 },
+  "shell installer path should not add duplicate token hooks when target already has one"
+);
+
+const duplicateDryRunTarget = path.join(tempRoot, "duplicate dry run target");
+fs.mkdirSync(path.join(duplicateDryRunTarget, ".claude"), { recursive: true });
+const duplicateDryRunSettings = clone(templateSettings);
+duplicateDryRunSettings.hooks.PreToolUse.push(
+  clone(templateSettings.hooks.PreToolUse.find((entry) => entry.matcher === "Grep"))
+);
+fs.writeFileSync(
+  path.join(duplicateDryRunTarget, ".claude", "settings.json"),
+  JSON.stringify(duplicateDryRunSettings, null, 2),
+  "utf8"
+);
+const duplicateDryRun = spawnSync(
+  process.execPath,
+  [path.join(repoRoot, "bin", "cts.js"), "scaffold", "--target", duplicateDryRunTarget, "--dry-run", "--json"],
+  { encoding: "utf8" }
+);
+assert.strictEqual(
+  duplicateDryRun.status,
+  0,
+  `duplicate dry-run failed\nstdout:\n${duplicateDryRun.stdout}\nstderr:\n${duplicateDryRun.stderr}`
+);
+const duplicatePlan = JSON.parse(duplicateDryRun.stdout);
+assert.strictEqual(duplicatePlan.token_settings.token_hooks.Grep.status, "duplicate");
+assert.ok(
+  duplicatePlan.risks.some((risk) => risk.code === "duplicate_token_hook" && risk.matcher === "Grep"),
+  "dry-run should report duplicate token hook risk"
+);
+
+const invalidDryRunTarget = path.join(tempRoot, "invalid dry run target");
+fs.mkdirSync(path.join(invalidDryRunTarget, ".claude"), { recursive: true });
+fs.writeFileSync(path.join(invalidDryRunTarget, ".claude", "settings.json"), "{ invalid json", "utf8");
+const invalidDryRun = spawnSync(
+  process.execPath,
+  [path.join(repoRoot, "bin", "cts.js"), "scaffold", "--target", invalidDryRunTarget, "--dry-run", "--json"],
+  { encoding: "utf8" }
+);
+assert.strictEqual(
+  invalidDryRun.status,
+  0,
+  `invalid dry-run failed\nstdout:\n${invalidDryRun.stdout}\nstderr:\n${invalidDryRun.stderr}`
+);
+const invalidDryRunPlan = JSON.parse(invalidDryRun.stdout);
+const invalidDryRunSettingsPlan = invalidDryRunPlan.plan.find((item) => item.path === ".claude/settings.json");
+assert.strictEqual(invalidDryRunSettingsPlan.action, "merge");
+assert.strictEqual(invalidDryRunSettingsPlan.backup_required, true);
+assert.strictEqual(invalidDryRunSettingsPlan.invalid_existing_json, true);
+assert.ok(
+  invalidDryRunPlan.risks.some((risk) => risk.code === "invalid_settings_json"),
+  "dry-run should report invalid settings JSON risk"
+);
+
+const verifyRiskTarget = path.join(repoRoot, ".tmp", `helper-verify-risk-${Date.now()}`);
+const verifyRiskScaffold = spawnSync(
+  process.execPath,
+  [path.join(repoRoot, "bin", "cts.js"), "scaffold", "--target", verifyRiskTarget],
+  { encoding: "utf8" }
+);
+assert.strictEqual(
+  verifyRiskScaffold.status,
+  0,
+  `verify risk scaffold failed\nstdout:\n${verifyRiskScaffold.stdout}\nstderr:\n${verifyRiskScaffold.stderr}`
+);
+const verifyRiskSettingsPath = path.join(verifyRiskTarget, ".claude", "settings.json");
+const verifyRiskSettings = JSON.parse(fs.readFileSync(verifyRiskSettingsPath, "utf8"));
+verifyRiskSettings.env.TOKEN_GUARD_MODE = "block";
+verifyRiskSettings.hooks.PreToolUse.push(
+  clone(verifyRiskSettings.hooks.PreToolUse.find((entry) => entry.matcher === "Bash"))
+);
+fs.writeFileSync(verifyRiskSettingsPath, JSON.stringify(verifyRiskSettings, null, 2), "utf8");
+const verifyRiskResult = spawnSync(
+  process.execPath,
+  [path.join(repoRoot, "bin", "cts.js"), "verify", "--target", verifyRiskTarget],
+  { encoding: "utf8" }
+);
+assert.strictEqual(
+  verifyRiskResult.status,
+  0,
+  `verify should warn, not fail, on duplicate hooks and missing block evidence\nstdout:\n${verifyRiskResult.stdout}\nstderr:\n${verifyRiskResult.stderr}`
+);
+const verifyRiskReport = JSON.parse(
+  fs.readFileSync(path.join(verifyRiskTarget, ".token-stack", "reports", "verify-report.json"), "utf8")
+);
+assert.ok(
+  verifyRiskReport.checks.some((check) => check.status === "WARN" && check.name === "token hook Bash" && check.detail.includes("duplicate")),
+  "verify should warn about duplicate token hooks"
+);
+assert.ok(
+  verifyRiskReport.checks.some((check) => check.status === "WARN" && check.name === "TOKEN_GUARD_MODE block evidence"),
+  "verify should warn when block mode lacks metrics/verify evidence"
 );
 
 const missingTarget = path.join(tempRoot, "missing metrics target");

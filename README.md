@@ -4,6 +4,8 @@
 
 中文摘要：本项目面向 Claude Code / AI Coding Agent 的上下文治理。它不承诺所有仓库总成本降低固定比例，而是把大输出、无边界搜索、重复 MCP、整文件读取和冗长报告变成可检测、可验证、可回滚的工程流程。
 
+Scope boundary: this project is only for token and context governance. It does not provide business architecture rules, domain allowlists, private repository policy, or broad code-quality governance.
+
 ## Problem Background
 
 Most avoidable token waste comes from unmanaged context:
@@ -22,6 +24,7 @@ Most avoidable token waste comes from unmanaged context:
 - Warn on broad `Read`, `Grep`, and `Glob` usage through `cbm-gate.py`.
 - Run Python hooks through `run-python-hook.js` for Windows, WSL2, macOS, Linux, Git Bash, and PowerShell compatibility.
 - Keep remote installers, RTK, Headroom, Caveman, context-mode, and codebase-memory-mcp optional.
+- Scaffold optional local MCP and bounded context-pack templates without enabling remote installs by default.
 - Generate verification and benchmark artifacts under `.token-stack/reports/`.
 
 ## Quick Start
@@ -102,7 +105,7 @@ Use `warn` first while collecting hook logs and benchmark data. Consider `block`
 - Cost or token metrics are not worse than baseline.
 - The team has reviewed false positives in `.claude/logs/token-guard.log` and `.claude/logs/cbm-gate.log`.
 
-Recommended rollout: switch `TOKEN_GUARD_MODE=block` first, keep `CBM_GATE_MODE=warn`, then evaluate broad `Grep`/`Glob` blocking later.
+Recommended rollout: switch `TOKEN_GUARD_MODE=block` first, keep `CBM_GATE_MODE=warn`, then evaluate broad `Grep`/`Glob` blocking later. Test/build commands are warn-only advisories in the default hook, even in block mode; use context-mode, targeted tests, or summarized logs for large output.
 
 ## RTK Windows/MINGW64 Strategy
 
@@ -115,6 +118,10 @@ RTK is optional. The installer detects `rtk` if it already exists. If not instal
 - `Caveman`: optional concise output style/tooling. If unavailable, use `.claude/output-styles/token-lean.md`.
 - `Headroom`: disabled by default. Enable only with `ENABLE_HEADROOM=1` after agreeing to setup, measurement, and rollback.
 - `codegraph`: optional duplicate MCP. If both `codebase-memory-mcp` and `codegraph` exist, prefer codebase-memory-mcp and remove codegraph if it creates duplicate context.
+
+Project-local MCP setup is optional. Start from `.mcp.local.example.json`, pin reviewed versions, avoid duplicate global/project servers, and record tool-list, connection, cache, rate-limit, read-only, and stability evidence with `docs/mcp-local-smoke.md`.
+
+For long handoffs, use `docs/context-pack-template.md` to keep evidence top-k, snippets bounded, risks explicit, and verification concrete.
 
 ## Verification And Benchmark
 

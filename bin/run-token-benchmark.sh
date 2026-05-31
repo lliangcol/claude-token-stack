@@ -58,9 +58,9 @@ cat > "$FIXTURE_DIR/synthetic-long-log.txt" <<'EOF_LOG'
 [WARN] retryable network timeout attempt=1
 [WARN] retryable network timeout attempt=2
 [WARN] retryable network timeout attempt=3
-[ERROR] payment-worker failed to parse payload file=src/payments/worker.ts line=184 code=E_PAYLOAD_SCHEMA
-Trace: at parsePayload src/payments/worker.ts:184
-Trace: at handleMessage src/payments/worker.ts:231
+[ERROR] queue-worker failed to parse event file=src/workers/event-worker.ts line=184 code=E_EVENT_SCHEMA
+Trace: at parseEvent src/workers/event-worker.ts:184
+Trace: at handleEvent src/workers/event-worker.ts:231
 Trace: at processTicksAndRejections internal/process/task_queues.js:95
 EOF_LOG
 for i in $(seq 1 500); do

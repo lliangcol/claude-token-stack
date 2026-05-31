@@ -292,12 +292,57 @@ def merge_list(a, b):
             out.append(item)
     return out
 
+token_hook_matchers = {
+    "Bash": "bash-token-guard.py",
+    "Read": "cbm-gate.py",
+    "Grep": "cbm-gate.py",
+    "Glob": "cbm-gate.py",
+}
+
+def hook_command(hook):
+    return hook.get("command", "") if isinstance(hook, dict) else ""
+
+def is_token_hook_for_matcher(entry):
+    if not isinstance(entry, dict):
+        return False
+    matcher = entry.get("matcher")
+    hook_name = token_hook_matchers.get(matcher)
+    if not hook_name:
+        return False
+    hooks = entry.get("hooks") if isinstance(entry.get("hooks"), list) else []
+    return any(hook_name in hook_command(hook) for hook in hooks)
+
+def count_token_hooks(entries):
+    counts = {matcher: 0 for matcher in token_hook_matchers}
+    for entry in entries or []:
+        if not isinstance(entry, dict):
+            continue
+        matcher = entry.get("matcher")
+        hook_name = token_hook_matchers.get(matcher)
+        if not hook_name:
+            continue
+        hooks = entry.get("hooks") if isinstance(entry.get("hooks"), list) else []
+        counts[matcher] += sum(1 for hook in hooks if hook_name in hook_command(hook))
+    return counts
+
+def merge_token_pre_tool_use(existing_entries, template_entries):
+    out = list(existing_entries or [])
+    for entry in template_entries or []:
+        if not is_token_hook_for_matcher(entry):
+            out = merge_list(out, [entry])
+            continue
+        matcher = entry.get("matcher")
+        if count_token_hooks(out).get(matcher, 0) > 0:
+            continue
+        out.append(entry)
+    return merge_list(out, [])
+
 base["env"] = {**(next_settings.get("env") or {}), **(base.get("env") or {})}
 base["permissions"] = base.get("permissions") or {}
 for key in ("allow", "ask", "deny"):
     base["permissions"][key] = merge_list(base["permissions"].get(key), (next_settings.get("permissions") or {}).get(key))
 base["hooks"] = base.get("hooks") or {}
-base["hooks"]["PreToolUse"] = merge_list(base["hooks"].get("PreToolUse"), (next_settings.get("hooks") or {}).get("PreToolUse"))
+base["hooks"]["PreToolUse"] = merge_token_pre_tool_use(base["hooks"].get("PreToolUse"), (next_settings.get("hooks") or {}).get("PreToolUse"))
 
 def canonical(value):
     return json.dumps(value, sort_keys=True, separators=(",", ":"))
@@ -371,6 +416,7 @@ scaffold() {
     record ".token-stack directories" "installed" "created reports, logs, and tmp roots"
   fi
   merge_settings
+  copy_template ".mcp.local.example.json" ".mcp.local.example.json"
   copy_template ".claude/settings.local.unattended.example.json" ".claude/settings.local.unattended.example.json"
   copy_template ".claude/token-policy.md" ".claude/token-policy.md"
   copy_template ".claude/hooks/run-python-hook.js" ".claude/hooks/run-python-hook.js"
@@ -379,6 +425,8 @@ scaffold() {
   copy_template ".claude/output-styles/token-lean.md" ".claude/output-styles/token-lean.md"
   copy_template "docs/claude-token-stack.md" "docs/claude-token-stack.md"
   copy_template "docs/claude-token-stack-rollback.md" "docs/claude-token-stack-rollback.md"
+  copy_template "docs/context-pack-template.md" "docs/context-pack-template.md"
+  copy_template "docs/mcp-local-smoke.md" "docs/mcp-local-smoke.md"
   append_gitignore
   if [[ "$DRY_RUN" != "1" ]]; then
     chmod +x "$REPO_ROOT/.claude/hooks/"*.py "$REPO_ROOT/.claude/hooks/"*.js 2>/dev/null || true

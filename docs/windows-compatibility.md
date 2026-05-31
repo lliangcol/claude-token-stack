@@ -13,7 +13,7 @@ C:\Users\Your Name
 Unquoted hook paths can break Claude settings. Always pass paths as quoted arguments and prefer the Node CLI:
 
 ```powershell
-node .\bin\cts.js scaffold --target "D:\Work\Projects\my repo"
+node .\bin\cts.js scaffold --target "<repo-root>"
 ```
 
 The Node CLI runs `verify`, `benchmark`, `install-tools`, and `all` through Bash scripts. From PowerShell, install Git Bash or use WSL2 for those commands. `scaffold`, `collect-metrics`, and `compare-metrics` do not require Bash.

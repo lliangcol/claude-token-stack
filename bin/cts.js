@@ -7,6 +7,14 @@ const root = path.resolve(__dirname, "..");
 const args = process.argv.slice(2);
 const command = args[0] || "help";
 const dryRun = args.includes("dry-run") || args.includes("--dry-run");
+const jsonOutput = args.includes("--json");
+const tokenHookMatchers = {
+  Bash: "bash-token-guard.py",
+  Read: "cbm-gate.py",
+  Grep: "cbm-gate.py",
+  Glob: "cbm-gate.py"
+};
+const tokenHookNames = new Set(["run-python-hook.js", "bash-token-guard.py", "cbm-gate.py"]);
 
 function option(name, fallback) {
   const idx = args.indexOf(name);
@@ -19,6 +27,9 @@ function passthroughArgs(startIndex = 1) {
   for (let i = startIndex; i < args.length; i += 1) {
     if (args[i] === "--target") {
       i += 1;
+      continue;
+    }
+    if (args[i] === "--json") {
       continue;
     }
     out.push(args[i]);
@@ -78,35 +89,331 @@ function stableStringify(value) {
   return JSON.stringify(value);
 }
 
+function readJsonFile(filePath) {
+  return JSON.parse(fs.readFileSync(filePath, "utf8"));
+}
+
+function hookCommand(hook) {
+  return hook && typeof hook.command === "string" ? hook.command : "";
+}
+
+function isTokenHookForMatcher(item) {
+  const matcher = item && item.matcher;
+  if (!Object.prototype.hasOwnProperty.call(tokenHookMatchers, matcher)) return false;
+  return (item.hooks || []).some((hook) => hookCommand(hook).includes(tokenHookMatchers[matcher]));
+}
+
+function countTokenHooks(settings) {
+  const counts = {};
+  for (const matcher of Object.keys(tokenHookMatchers)) counts[matcher] = 0;
+  const entries = (((settings || {}).hooks || {}).PreToolUse || []);
+  for (const entry of entries) {
+    const matcher = entry && entry.matcher;
+    if (!Object.prototype.hasOwnProperty.call(counts, matcher)) continue;
+    for (const hook of entry.hooks || []) {
+      const commandText = hookCommand(hook);
+      if (commandText.includes(tokenHookMatchers[matcher])) {
+        counts[matcher] += 1;
+      }
+    }
+  }
+  return counts;
+}
+
+function mergeTokenPreToolUse(existing = [], template = [], decisions = []) {
+  const out = [...existing];
+  const existingSettings = { hooks: { PreToolUse: out } };
+  for (const item of template) {
+    if (!isTokenHookForMatcher(item)) {
+      out.push(item);
+      continue;
+    }
+    const matcher = item.matcher;
+    const counts = countTokenHooks(existingSettings);
+    if (counts[matcher] > 0) {
+      decisions.push({
+        matcher,
+        action: "skipped",
+        reason: "existing_token_hook",
+        existing: counts[matcher],
+        template_hook: tokenHookMatchers[matcher]
+      });
+      continue;
+    }
+    out.push(item);
+    decisions.push({
+      matcher,
+      action: "added",
+      reason: "missing_token_hook",
+      existing: 0,
+      template_hook: tokenHookMatchers[matcher]
+    });
+  }
+  return out;
+}
+
+function reportPathExists(target, rel) {
+  return fs.existsSync(path.join(target, rel));
+}
+
+function blockEvidence(target) {
+  const verifyReport = reportPathExists(target, path.join(".token-stack", "reports", "verify-report.json"));
+  const metricsSummary = reportPathExists(target, path.join(".token-stack", "reports", "metrics-summary.json"));
+  const tokenLog = reportPathExists(target, path.join(".claude", "logs", "token-guard.log"));
+  const cbmLog = reportPathExists(target, path.join(".claude", "logs", "cbm-gate.log"));
+  return { verify_report: verifyReport, metrics_summary: metricsSummary, hook_logs: tokenLog || cbmLog };
+}
+
+function missingHookTargets(settings, target, plannedTemplateFiles = []) {
+  const planned = new Set(plannedTemplateFiles.map((rel) => path.normalize(rel)));
+  const missing = [];
+  const entries = (((settings || {}).hooks || {}).PreToolUse || []);
+  for (const entry of entries) {
+    for (const hook of entry.hooks || []) {
+      const commandText = hookCommand(hook);
+      const names = new Set();
+      for (const name of tokenHookNames) {
+        if (commandText.includes(name)) names.add(name);
+      }
+      for (const name of names) {
+        const rel = path.join(".claude", "hooks", name);
+        const abs = path.join(target, rel);
+        if (!fs.existsSync(abs) && !planned.has(path.normalize(rel))) {
+          missing.push({ matcher: entry.matcher || "", file: rel, command_hook: name });
+        }
+      }
+    }
+  }
+  return missing;
+}
+
+function analyzeTokenSettings(settings, target, options = {}) {
+  const env = Object.assign({}, (settings || {}).env || {});
+  const counts = countTokenHooks(settings);
+  const evidence = blockEvidence(target);
+  const risks = [];
+  const envChecks = {};
+  for (const name of ["TOKEN_GUARD_MODE", "CBM_GATE_MODE", "CBM_GATE_BLOCK_TOOLS"]) {
+    envChecks[name] = env[name] || "";
+  }
+
+  for (const [matcher, count] of Object.entries(counts)) {
+    if (count > 1) {
+      risks.push({
+        status: "WARN",
+        code: "duplicate_token_hook",
+        matcher,
+        detail: `${count} token hooks configured for ${matcher}`
+      });
+    }
+  }
+
+  for (const item of missingHookTargets(settings, target, options.plannedTemplateFiles || [])) {
+    risks.push({
+      status: "WARN",
+      code: "missing_hook_target",
+      matcher: item.matcher,
+      file: item.file,
+      detail: `${item.command_hook} is referenced but ${item.file} does not exist`
+    });
+  }
+
+  for (const name of ["TOKEN_GUARD_MODE", "CBM_GATE_MODE"]) {
+    if (String(env[name] || "").toLowerCase() === "block" && (!evidence.verify_report || !evidence.metrics_summary)) {
+      risks.push({
+        status: "WARN",
+        code: "block_without_evidence",
+        env: name,
+        evidence,
+        detail: `${name}=block but verify-report.json and metrics-summary.json were not both found`
+      });
+    }
+  }
+
+  const blockTools = String(env.CBM_GATE_BLOCK_TOOLS || "");
+  if (blockTools) {
+    const tools = blockTools.split(",").map((item) => item.trim()).filter(Boolean);
+    const unknown = tools.filter((tool) => !["Read", "Grep", "Glob"].includes(tool));
+    if (unknown.length > 0) {
+      risks.push({
+        status: "WARN",
+        code: "unknown_cbm_gate_block_tool",
+        tools: unknown,
+        detail: `unknown CBM_GATE_BLOCK_TOOLS entries: ${unknown.join(",")}`
+      });
+    }
+    if (tools.includes("Read")) {
+      risks.push({
+        status: "WARN",
+        code: "read_block_enabled",
+        detail: "CBM_GATE_BLOCK_TOOLS includes Read; keep Read in warn unless false positives are reviewed"
+      });
+    }
+  }
+
+  return {
+    env: envChecks,
+    token_hooks: Object.fromEntries(Object.entries(counts).map(([matcher, count]) => [
+      matcher,
+      { count, status: count === 0 ? "new" : count === 1 ? "existing" : "duplicate" }
+    ])),
+    evidence,
+    risks
+  };
+}
+
+function scaffoldTemplateFiles() {
+  return [
+    ".mcp.local.example.json",
+    ".claude/settings.local.unattended.example.json",
+    ".claude/token-policy.md",
+    ".claude/hooks/run-python-hook.js",
+    ".claude/hooks/bash-token-guard.py",
+    ".claude/hooks/cbm-gate.py",
+    ".claude/output-styles/token-lean.md",
+    "docs/claude-token-stack.md",
+    "docs/claude-token-stack-rollback.md",
+    "docs/context-pack-template.md",
+    "docs/mcp-local-smoke.md"
+  ];
+}
+
+function buildScaffoldPlan(target, existingSettings, mergedSettings, hookDecisions, options = {}) {
+  const templateFiles = scaffoldTemplateFiles();
+  const plan = [];
+  const settingsPath = path.join(target, ".claude", "settings.json");
+  const existingSettingsExists = Boolean(options.existingSettingsExists || existingSettings);
+  const invalidExistingSettings = Boolean(options.invalidExistingSettings);
+  plan.push({
+    action: existingSettingsExists ? "merge" : "create",
+    path: ".claude/settings.json",
+    backup_required: Boolean(
+      existingSettingsExists && (invalidExistingSettings || stableStringify(existingSettings) !== stableStringify(mergedSettings))
+    ),
+    invalid_existing_json: invalidExistingSettings,
+    hook_decisions: hookDecisions
+  });
+  const gitignorePath = path.join(target, ".gitignore");
+  plan.push({
+    action: fs.existsSync(gitignorePath) ? "append" : "create",
+    path: ".gitignore",
+    entries: [".claude/logs/", ".token-stack/", "*.bak.*"]
+  });
+  for (const rel of templateFiles) {
+    const dst = path.join(target, rel);
+    let action = "copy";
+    if (fs.existsSync(dst)) {
+      const src = path.join(root, "templates", rel);
+      action = Buffer.compare(fs.readFileSync(src), fs.readFileSync(dst)) === 0 ? "skip" : "replace";
+    }
+    plan.push({ action, path: rel, backup_required: action === "replace" });
+  }
+  return { settings_path: settingsPath, plan };
+}
+
+function printScaffoldPlan(planPayload) {
+  if (jsonOutput) {
+    console.log(`${JSON.stringify(planPayload, null, 2)}`);
+    return;
+  }
+  console.log(`dry-run: scaffold plan for ${planPayload.target}`);
+  for (const item of planPayload.plan) {
+    const backup = item.backup_required ? " backup=yes" : "";
+    console.log(`PLAN ${item.action} ${item.path}${backup}`);
+    if (item.path === ".claude/settings.json") {
+      for (const decision of item.hook_decisions || []) {
+        console.log(`HOOK ${decision.matcher} ${decision.action} ${decision.reason}`);
+      }
+    }
+  }
+  for (const [matcher, info] of Object.entries(planPayload.token_settings.token_hooks)) {
+    console.log(`HOOK_STATUS ${matcher} ${info.status} count=${info.count}`);
+  }
+  for (const risk of planPayload.risks) {
+    console.log(`${risk.status} ${risk.code}${risk.matcher ? ` matcher=${risk.matcher}` : ""}${risk.env ? ` env=${risk.env}` : ""} ${risk.detail || ""}`);
+  }
+}
+
 function mergeSettings(target) {
   const existingPath = path.join(target, ".claude", "settings.json");
   const templatePath = path.join(root, "templates", ".claude", "settings.json");
-  if (dryRun) {
-    console.log(`dry-run: merge ${templatePath} -> ${existingPath}`);
-    return;
-  }
   let base = {};
   let existingParsed = null;
-  if (fs.existsSync(existingPath)) {
+  const existingSettingsExists = fs.existsSync(existingPath);
+  let invalidExistingSettings = false;
+  if (existingSettingsExists) {
     const existingRaw = fs.readFileSync(existingPath, "utf8");
     try {
       existingParsed = JSON.parse(existingRaw);
       base = JSON.parse(JSON.stringify(existingParsed));
     } catch {
+      invalidExistingSettings = true;
       const backupPath = `${existingPath}.bak.${Date.now()}`;
-      fs.copyFileSync(existingPath, backupPath);
-      console.warn(`claude-token-stack: existing settings.json is invalid JSON; backup preserved at ${backupPath}, merging from template.`);
+      if (!dryRun) {
+        fs.copyFileSync(existingPath, backupPath);
+        console.warn(`claude-token-stack: existing settings.json is invalid JSON; backup preserved at ${backupPath}, merging from template.`);
+      }
       base = {};
     }
   }
-  const next = JSON.parse(fs.readFileSync(templatePath, "utf8"));
+  const next = readJsonFile(templatePath);
   base.env = Object.assign({}, next.env || {}, base.env || {});
   base.permissions = base.permissions || {};
   for (const key of ["allow", "ask", "deny"]) {
     base.permissions[key] = mergeUnique(base.permissions[key], (next.permissions || {})[key]);
   }
   base.hooks = base.hooks || {};
-  base.hooks.PreToolUse = mergeUnique(base.hooks.PreToolUse, (next.hooks || {}).PreToolUse);
+  const hookDecisions = [];
+  base.hooks.PreToolUse = mergeUnique(
+    mergeTokenPreToolUse(base.hooks.PreToolUse, (next.hooks || {}).PreToolUse, hookDecisions),
+    []
+  );
+  if (dryRun) {
+    const planDetails = buildScaffoldPlan(target, existingParsed, base, hookDecisions, {
+      existingSettingsExists,
+      invalidExistingSettings
+    });
+    const tokenSettings = analyzeTokenSettings(base, target, { plannedTemplateFiles: scaffoldTemplateFiles() });
+    const existingCounts = countTokenHooks(existingParsed || {});
+    for (const matcher of Object.keys(tokenHookMatchers)) {
+      const count = existingCounts[matcher] || 0;
+      tokenSettings.token_hooks[matcher] = {
+        count,
+        planned_count: count + hookDecisions.filter((item) => item.matcher === matcher && item.action === "added").length,
+        status: count === 0 ? "new" : count === 1 ? "existing" : "duplicate"
+      };
+      if (count > 1 && !tokenSettings.risks.some((risk) => risk.code === "duplicate_token_hook" && risk.matcher === matcher)) {
+        tokenSettings.risks.push({
+          status: "WARN",
+          code: "duplicate_token_hook",
+          matcher,
+          detail: `${count} existing token hooks configured for ${matcher}`
+        });
+      }
+    }
+    if (invalidExistingSettings) {
+      tokenSettings.risks.push({
+        status: "WARN",
+        code: "invalid_settings_json",
+        file: ".claude/settings.json",
+        detail: "existing .claude/settings.json is invalid JSON and would be backed up before template merge"
+      });
+    }
+    printScaffoldPlan({
+      schema_version: 1,
+      command: "scaffold",
+      dry_run: true,
+      target,
+      settings_path: planDetails.settings_path,
+      plan: planDetails.plan,
+      token_settings: tokenSettings,
+      risks: tokenSettings.risks
+    });
+    return;
+  }
+  for (const decision of hookDecisions.filter((item) => item.action === "skipped")) {
+    console.warn(`claude-token-stack: ${decision.matcher} token hook already exists; skipped template hook`);
+  }
   if (existingParsed && stableStringify(existingParsed) === stableStringify(base)) {
     return;
   }
@@ -140,17 +447,14 @@ function appendGitignore(target) {
 function scaffold() {
   const target = targetDir();
   mergeSettings(target);
+  if (dryRun) {
+    if (!jsonOutput) {
+      console.log(`Dry-run scaffolded claude-token-stack into ${target}`);
+    }
+    return;
+  }
   appendGitignore(target);
-  for (const rel of [
-    ".claude/settings.local.unattended.example.json",
-    ".claude/token-policy.md",
-    ".claude/hooks/run-python-hook.js",
-    ".claude/hooks/bash-token-guard.py",
-    ".claude/hooks/cbm-gate.py",
-    ".claude/output-styles/token-lean.md",
-    "docs/claude-token-stack.md",
-    "docs/claude-token-stack-rollback.md"
-  ]) {
+  for (const rel of scaffoldTemplateFiles()) {
     copyFile(rel, target);
   }
   console.log(`Scaffolded claude-token-stack into ${target}`);

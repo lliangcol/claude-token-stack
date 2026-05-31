@@ -74,10 +74,21 @@ assertStatus(
   2
 );
 
+assertStatus(
+  "block mode test command advisory stays non-blocking",
+  runHook(
+    bashGuard,
+    { tool_name: "Bash", tool_input: { command: "npm test" } },
+    { TOKEN_GUARD_MODE: "block" }
+  ),
+  0
+);
+
 const tokenLog = path.join(projectDir, ".claude", "logs", "token-guard.log");
 assert.ok(fs.existsSync(tokenLog), "token guard log should be generated");
 assert.match(fs.readFileSync(tokenLog, "utf8"), /tree/);
 assert.match(fs.readFileSync(tokenLog, "utf8"), /\.env/);
+assert.match(fs.readFileSync(tokenLog, "utf8"), /advisories/);
 
 assertStatus(
   "cbm warn",
@@ -95,6 +106,34 @@ assertStatus(
     cbmGate,
     { tool_name: "Grep", tool_input: { pattern: "TODO", path: ".", glob: "**/*" } },
     { CBM_GATE_MODE: "block" }
+  ),
+  2
+);
+
+const cbmFalsePositive = runHook(
+  cbmGate,
+  { tool_name: "Read", tool_input: { file_path: "README.md", note: "src/index.js" } },
+  { CBM_GATE_MODE: "warn" }
+);
+assertStatus("cbm ignores non-path source-like strings", cbmFalsePositive, 0);
+assert.strictEqual(cbmFalsePositive.stderr, "", "source-like strings outside path fields should not warn");
+
+assertStatus(
+  "cbm block tools keeps Read warn by default",
+  runHook(
+    cbmGate,
+    { tool_name: "Read", tool_input: { file_path: "src/index.js" } },
+    { CBM_GATE_MODE: "block" }
+  ),
+  0
+);
+
+assertStatus(
+  "cbm block tools can opt into Read",
+  runHook(
+    cbmGate,
+    { tool_name: "Read", tool_input: { file_path: "src/index.js" } },
+    { CBM_GATE_MODE: "block", CBM_GATE_BLOCK_TOOLS: "Read,Grep,Glob" }
   ),
   2
 );

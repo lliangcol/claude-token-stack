@@ -23,8 +23,10 @@ Expected hook smoke behavior:
 
 - `TOKEN_GUARD_MODE=warn` exits `0` for noisy commands.
 - `TOKEN_GUARD_MODE=block` exits `2` for noisy commands.
+- Test/build advisories exit `0` by default even when `TOKEN_GUARD_MODE=block`; they are prompts to summarize output, not default hard blocks.
 - `CBM_GATE_MODE=warn` exits `0` for broad discovery.
 - `CBM_GATE_MODE=block` exits `2` for broad `Grep` or `Glob` cases.
+- `CBM_GATE_BLOCK_TOOLS` controls which of `Read`, `Grep`, and `Glob` can block. Keep the default `Grep,Glob` unless hook logs prove `Read` false positives are low.
 
 ## Claude Code Integration Test
 
@@ -102,6 +104,15 @@ Minimum criteria:
 - `metrics-summary.json` has `"recommend_enter_block": true` for representative data.
 - The team accepts the rollback path.
 
+Use hook logs as the final promotion gate:
+
+1. Collect warn-mode logs for representative coding, debugging, test, and review tasks.
+2. Classify each `token-guard.log` and `cbm-gate.log` hit as true positive, acceptable advisory, false positive, or unclear.
+3. Keep `Read` in warn unless source-read warnings have near-zero false positives and the team accepts the interruption cost.
+4. Promote only deterministic high-noise Bash rules first. Test/build advisories should remain warn-only unless a project explicitly opts into stricter local rules.
+5. Promote `Grep`/`Glob` blocking only when broad-search warnings are consistently true positives and narrowed retries are easy.
+6. Record the reviewed log sample, false-positive count, rollback owner, and rollback command in `.token-stack/reports/`.
+
 Recommended first block:
 
 ```bash
@@ -110,3 +121,20 @@ CBM_GATE_MODE=warn
 ```
 
 Move `CBM_GATE_MODE` to `block` later only if broad `Grep`/`Glob` warnings are consistently correct.
+
+## Local MCP Smoke
+
+Optional project-local MCP dependencies start from `.mcp.local.example.json`. Pin reviewed versions before use and do not auto-install remote tools during validation.
+
+Capture this evidence before treating MCP governance as reliable:
+
+- Active MCP list shows one code discovery server and no duplicate `codegraph` route.
+- A bounded Codebase Memory request succeeds against the target repo, or the repo is explicitly recorded as not indexed.
+- Repeating a bounded request shows cache reuse, warm-cache timing, or stable output when the MCP exposes cache evidence.
+- Rate-limit or throttling status is clean for a small request.
+- Read-only behavior is documented: mutation tools are absent, disabled, or out of scope.
+- Three small bounded requests complete without reconnect failures.
+
+## Context Pack Check
+
+Use `docs/context-pack-template.md` for handoffs that would otherwise become broad scans or long reports. A context pack is acceptable only if it has a narrow topic, top-k evidence, bounded snippets, risks, and a verification checklist.

@@ -121,6 +121,93 @@ else
   fi
 fi
 
+section "Token Settings Risks"
+py="$(python_cmd || true)"
+if [[ -z "${py:-}" || ! -f .claude/settings.json ]]; then
+  record WARN "token settings risk check" "python or .claude/settings.json unavailable"
+else
+  while IFS=$'\t' read -r status name detail; do
+    [[ -n "${status:-}" && -n "${name:-}" ]] && record "$status" "$name" "${detail:-}"
+  done < <("$py" - "$REPO_ROOT" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+root = Path(sys.argv[1])
+settings_path = root / ".claude" / "settings.json"
+try:
+    settings = json.loads(settings_path.read_text(encoding="utf-8"))
+except Exception as exc:
+    print(f"WARN\ttoken settings risk check\tsettings unavailable: {exc}")
+    raise SystemExit(0)
+
+env = settings.get("env") if isinstance(settings.get("env"), dict) else {}
+valid_modes = {"warn", "block", "off"}
+for name in ("TOKEN_GUARD_MODE", "CBM_GATE_MODE"):
+    value = str(env.get(name, "")).lower()
+    if value in valid_modes:
+        print(f"PASS\t{name} configured\t{value}")
+    elif value:
+        print(f"WARN\t{name} configured\tunexpected value: {value}")
+    else:
+        print(f"WARN\t{name} configured\tmissing; default hook behavior is warn")
+
+block_tools_raw = str(env.get("CBM_GATE_BLOCK_TOOLS", ""))
+if block_tools_raw:
+    tools = [item.strip() for item in block_tools_raw.split(",") if item.strip()]
+    unknown = [tool for tool in tools if tool not in {"Read", "Grep", "Glob"}]
+    if unknown:
+        print(f"WARN\tCBM_GATE_BLOCK_TOOLS configured\tunknown tools: {','.join(unknown)}")
+    elif "Read" in tools:
+        print("WARN\tCBM_GATE_BLOCK_TOOLS configured\tRead is included; keep Read warn-first unless logs justify blocking")
+    else:
+        print(f"PASS\tCBM_GATE_BLOCK_TOOLS configured\t{','.join(tools)}")
+else:
+    print("WARN\tCBM_GATE_BLOCK_TOOLS configured\tmissing; default block tools are Grep,Glob")
+
+token_hook_matchers = {
+    "Bash": "bash-token-guard.py",
+    "Read": "cbm-gate.py",
+    "Grep": "cbm-gate.py",
+    "Glob": "cbm-gate.py",
+}
+token_hook_names = {"run-python-hook.js", "bash-token-guard.py", "cbm-gate.py"}
+counts = {matcher: 0 for matcher in token_hook_matchers}
+missing = []
+entries = (((settings.get("hooks") or {}).get("PreToolUse")) or [])
+for entry in entries:
+    if not isinstance(entry, dict):
+        continue
+    matcher = entry.get("matcher")
+    hooks = entry.get("hooks") if isinstance(entry.get("hooks"), list) else []
+    for hook in hooks:
+        command = hook.get("command", "") if isinstance(hook, dict) else ""
+        if matcher in token_hook_matchers and token_hook_matchers[matcher] in command:
+            counts[matcher] += 1
+        for hook_name in token_hook_names:
+            if hook_name in command and not (root / ".claude" / "hooks" / hook_name).exists():
+                missing.append((matcher or "", hook_name))
+
+for matcher, count in counts.items():
+    if count == 0:
+        print(f"WARN\ttoken hook {matcher}\tmissing")
+    elif count == 1:
+        print(f"PASS\ttoken hook {matcher}\texactly one")
+    else:
+        print(f"WARN\ttoken hook {matcher}\tduplicate count={count}")
+
+for matcher, hook_name in sorted(set(missing)):
+    print(f"WARN\ttoken hook target exists\t{matcher} references missing .claude/hooks/{hook_name}")
+
+verify_report = root / ".token-stack" / "reports" / "verify-report.json"
+metrics_summary = root / ".token-stack" / "reports" / "metrics-summary.json"
+for name in ("TOKEN_GUARD_MODE", "CBM_GATE_MODE"):
+    if str(env.get(name, "")).lower() == "block" and (not verify_report.exists() or not metrics_summary.exists()):
+        print(f"WARN\t{name} block evidence\tblock mode set but verify-report.json and metrics-summary.json were not both found")
+PY
+  )
+fi
+
 section "Hook executability"
 node_bin="$(node_cmd 2>/dev/null || true)"
 settings_uses_node_runner=0
