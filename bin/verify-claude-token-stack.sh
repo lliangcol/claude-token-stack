@@ -126,9 +126,8 @@ py="$(python_cmd || true)"
 if [[ -z "${py:-}" || ! -f .claude/settings.json ]]; then
   record WARN "token settings risk check" "python or .claude/settings.json unavailable"
 else
-  while IFS=$'\t' read -r status name detail; do
-    [[ -n "${status:-}" && -n "${name:-}" ]] && record "$status" "$name" "${detail:-}"
-  done < <("$py" - "$REPO_ROOT" <<'PY'
+  risk_results="$REPORT_DIR/token-settings-risk.tsv"
+  "$py" - "$REPO_ROOT" > "$risk_results" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -205,7 +204,10 @@ for name in ("TOKEN_GUARD_MODE", "CBM_GATE_MODE"):
     if str(env.get(name, "")).lower() == "block" and (not verify_report.exists() or not metrics_summary.exists()):
         print(f"WARN\t{name} block evidence\tblock mode set but verify-report.json and metrics-summary.json were not both found")
 PY
-  )
+  while IFS=$'\t' read -r status name detail; do
+    [[ -n "${status:-}" && -n "${name:-}" ]] && record "$status" "$name" "${detail:-}"
+  done < "$risk_results"
+  rm -f "$risk_results"
 fi
 
 section "Hook executability"
