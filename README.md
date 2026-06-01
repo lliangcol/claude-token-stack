@@ -1,62 +1,163 @@
 # claude-token-stack
 
-`claude-token-stack` is an open-source Claude Code token governance kit. It gives a repository a project policy, warn-first hooks, MCP/tool guidance, validation scripts, benchmark reports, and rollback instructions so token reduction work is measurable instead of anecdotal.
+## Hero
 
-中文摘要：本项目面向 Claude Code / AI Coding Agent 的上下文治理。它不承诺所有仓库总成本降低固定比例，而是把大输出、无边界搜索、重复 MCP、整文件读取和冗长报告变成可检测、可验证、可回滚的工程流程。
+**Repo-level governance toolkit for Claude Code and AI coding agents: policy, hooks, MCP guidance, verification, benchmarks, and rollback.**
 
-Scope boundary: this project is only for token and context governance. It does not provide business architecture rules, domain allowlists, private repository policy, or broad code-quality governance.
+`claude-token-stack` helps maintainers and engineering teams make agent sessions more bounded, measurable, and reversible across real repositories.
 
-## Problem Background
+It is not a one-off token compression tool. It is a repository-level governance kit for reducing avoidable context waste through warn-first controls, benchmark evidence, cross-platform setup, and safe rollback paths.
 
-Most avoidable token waste comes from unmanaged context:
+## Why Now
 
-- Recursive output such as `tree`, `ls -R`, `grep -R`, broad `find`, and full log dumps.
-- Reading entire source files before symbol or caller discovery.
-- Using overlapping MCP servers that return duplicate context.
-- Letting generated, vendor, build, lock, or log files enter the prompt.
-- Enabling optimization tools without a baseline, post measurement, or rollback path.
-- Missing project-local policy, so every agent session rediscovers the same constraints.
+AI coding agents are moving from individual experiments into shared engineering workflows. That makes unmanaged context more than a cost problem: it affects speed, reviewability, reproducibility, and team trust.
 
-## Core Capabilities
+Most avoidable waste comes from ordinary repository behavior:
 
-- Scaffold `.claude/settings.json`, `.claude/token-policy.md`, hooks, output style guidance, and rollback docs into a target repo.
-- Warn on high-noise Bash commands through `bash-token-guard.py`.
-- Warn on broad `Read`, `Grep`, and `Glob` usage through `cbm-gate.py`.
-- Run Python hooks through `run-python-hook.js` for Windows, WSL2, macOS, Linux, Git Bash, and PowerShell compatibility.
-- Keep remote installers, RTK, Headroom, Caveman, context-mode, and codebase-memory-mcp optional.
-- Scaffold optional local MCP and bounded context-pack templates without enabling remote installs by default.
-- Generate verification and benchmark artifacts under `.token-stack/reports/`.
+- recursive shell output such as `tree`, `ls -R`, `grep -R`, broad `find`, and full log dumps;
+- whole-file reads before symbol, caller, or snippet discovery;
+- duplicate MCP servers returning overlapping context;
+- generated, vendor, build, lock, or log files entering prompts;
+- optimization tools enabled without a baseline, post measurement, or rollback path;
+- missing project-local policy, so every agent session rediscovers the same constraints.
 
-## Quick Start
+`claude-token-stack` gives the repository a practical operating layer: policy, hooks, MCP guidance, verification, benchmark reports, and rollback.
+
+## Who This Is For
+
+Use this if you are:
+
+- maintaining a repository where Claude Code or AI coding agents are used repeatedly;
+- standardizing AI coding workflows across a team;
+- trying to reduce avoidable context waste without blocking useful exploration too early;
+- evaluating MCP tools and want guidance against duplicate or noisy context;
+- looking for benchmark and rollback evidence before enforcing stricter controls.
+
+This may not be for you if you only need a prompt-shortening utility, a generic linter, or a guaranteed token-savings percentage.
+
+## What You Get
+
+`claude-token-stack` scaffolds:
+
+- **Policy**: project-local Claude Code token and context rules.
+- **Hooks**: warn-first guards for noisy shell commands, broad reads, greps, and globs.
+- **MCP guidance**: recommendations for bounded discovery and duplicate MCP avoidance.
+- **Verification**: scripts and reports to confirm the stack is installed correctly.
+- **Benchmarking**: baseline/post metrics for adoption decisions.
+- **Rollback**: backups, disable modes, and removal instructions.
+
+Core files and behavior include:
+
+- `.claude/settings.json`, `.claude/token-policy.md`, hooks, output style guidance, and rollback docs;
+- `bash-token-guard.py` for high-noise Bash command warnings;
+- `cbm-gate.py` for broad `Read`, `Grep`, and `Glob` warnings;
+- `run-python-hook.js` for Windows, WSL2, macOS, Linux, Git Bash, and PowerShell hook execution;
+- optional guidance for RTK, Headroom, Caveman, context-mode, codebase-memory-mcp, and local MCP setup;
+- verification and benchmark artifacts under `.token-stack/reports/`.
+
+## Quickstart
 
 From this repository:
 
 ```bash
 npm install
-npm test
-node bin/cts.js scaffold --target /path/to/target-repo
-node bin/cts.js verify --target /path/to/target-repo
+node bin/cts.js scaffold --target /path/to/your-repo
+node bin/cts.js verify --target /path/to/your-repo
 ```
 
-From npm after publication:
+After npm publication:
 
 ```bash
 npx claude-token-stack scaffold
 npx claude-token-stack verify
 ```
 
-Scaffold is local-first. Remote optional tool installation is disabled unless explicitly enabled:
+Default behavior:
+
+- warn-first, not block-first;
+- local-first, with remote optional tools disabled by default;
+- benchmark-ready, so adoption can be measured;
+- rollback-ready, so changes can be undone cleanly.
+
+## Recommended Rollout
+
+Start in warn mode and collect evidence:
 
 ```bash
-TOKEN_STACK_ALLOW_REMOTE_INSTALL=1 \
-CONTEXT_MODE_NPM_SPEC=context-mode@REVIEWED_VERSION \
-CODEBASE_MEMORY_MCP_NPM_SPEC=codebase-memory-mcp@REVIEWED_VERSION \
-npx claude-token-stack install-tools
+export TOKEN_GUARD_MODE=warn
+export CBM_GATE_MODE=warn
+export ENABLE_HEADROOM=0
 ```
 
-Remote npm/npx installs require pinned package specs by default. Set `TOKEN_STACK_ALLOW_UNPINNED_REMOTE_INSTALL=1` only in disposable or otherwise reviewed environments.
+Defaults in `templates/.claude/settings.json` follow the same posture:
 
-## Windows / macOS / Linux
+```json
+{
+  "TOKEN_GUARD_MODE": "warn",
+  "CBM_GATE_MODE": "warn",
+  "ENABLE_HEADROOM": "0"
+}
+```
+
+Consider blocking only after:
+
+- hook smoke tests pass in warn and block modes;
+- `metrics-summary.json` recommends entering block mode;
+- post-adoption tasks still pass;
+- raw large-output events are not worse than baseline;
+- cost or token metrics are not worse than baseline;
+- the team has reviewed false positives in `.claude/logs/token-guard.log` and `.claude/logs/cbm-gate.log`.
+
+A conservative path is to switch `TOKEN_GUARD_MODE=block` first, keep `CBM_GATE_MODE=warn`, and evaluate broad `Grep`/`Glob` blocking later. Test and build commands remain warn-only advisories in the default hook even when block mode is enabled.
+
+## Real Proof
+
+This project is designed to produce evidence instead of claims.
+
+Verification and benchmark runs generate artifacts such as:
+
+- `.token-stack/reports/verify-report.md`
+- `.token-stack/reports/verify-report.json`
+- `.token-stack/reports/baseline/*.json`
+- `.token-stack/reports/post/*.json`
+- `.token-stack/reports/metrics-summary.json`
+- `.token-stack/reports/metrics-summary.md`
+
+Run synthetic baseline/post benchmarks and compare:
+
+```bash
+node bin/cts.js benchmark synthetic-only --target .
+node bin/cts.js collect-metrics .token-stack/reports
+node bin/cts.js compare-metrics .token-stack/reports
+```
+
+Example evidence table to fill with measured data:
+
+| Scenario | Baseline | Post-adoption | Result |
+| --- | --- | --- | --- |
+| Broad shell output | TBD | TBD | TBD |
+| Full-file reads before discovery | TBD | TBD | TBD |
+| Duplicate MCP context | TBD | TBD | TBD |
+| Task success | TBD | TBD | TBD |
+
+Do not replace `TBD` with estimates. This README should only claim measured outcomes.
+
+## Comparison
+
+| Capability | Token compression tool | Context summarizer | MCP discovery tool | Generic linter | claude-token-stack |
+| --- | --- | --- | --- | --- | --- |
+| Repo-level policy | Usually no | Usually no | No | Sometimes | Yes |
+| Claude Code hooks | No | No | No | No | Yes |
+| Warn-first rollout | Rare | Rare | No | Sometimes | Yes |
+| MCP guidance | No | No | Yes | No | Yes |
+| Verification workflow | Rare | Rare | Rare | Sometimes | Yes |
+| Benchmark workflow | Rare | Rare | Rare | No | Yes |
+| Rollback docs | Rare | Rare | No | No | Yes |
+| Cross-platform setup guidance | Varies | Varies | Varies | Varies | Yes |
+
+`claude-token-stack` complements compression and discovery tools. It provides the repository-level governance layer around them.
+
+## Cross-Platform Notes
 
 macOS and Linux can run the Bash scripts directly:
 
@@ -75,90 +176,29 @@ powershell -ExecutionPolicy Bypass -File .\bin\fix-windows-claude-settings.ps1 -
 
 `verify`, `benchmark`, `install-tools`, and `all` invoke Bash scripts even when started through the Node CLI. Run those commands from Git Bash/WSL2, or install Git Bash and keep target paths quoted.
 
-WSL2 users can run the Bash scripts inside WSL2. Keep target paths consistent inside the same environment, for example `/mnt/d/...` rather than mixing Windows and WSL path forms in one command.
-
-## Git Bash / PowerShell / WSL2 Notes
-
-- PowerShell does not support Bash heredoc syntax such as `python - <<'PY'`; use the Node CLI or run Bash scripts inside Git Bash/WSL2.
-- Git Bash and MINGW64 are supported for scaffold and verification, but RTK auto-install is skipped there by default.
-- WSL2 is the recommended Windows path for POSIX shell workflows and optional Unix-oriented tools.
-- Windows paths with spaces must be passed as quoted arguments. The Node CLI and `run-python-hook.js` avoid shell interpolation for hook execution.
-
-## Default Warn, When To Block
-
-Defaults in `templates/.claude/settings.json`:
-
-```json
-{
-  "TOKEN_GUARD_MODE": "warn",
-  "CBM_GATE_MODE": "warn",
-  "ENABLE_HEADROOM": "0"
-}
-```
-
-Use `warn` first while collecting hook logs and benchmark data. Consider `block` only when:
-
-- Hook smoke tests pass in both warn and block modes.
-- `metrics-summary.json` has `"recommend_enter_block": true`.
-- Post-adoption tasks still pass.
-- Raw large output events are not worse than baseline.
-- Cost or token metrics are not worse than baseline.
-- The team has reviewed false positives in `.claude/logs/token-guard.log` and `.claude/logs/cbm-gate.log`.
-
-Recommended rollout: switch `TOKEN_GUARD_MODE=block` first, keep `CBM_GATE_MODE=warn`, then evaluate broad `Grep`/`Glob` blocking later. Test/build commands are warn-only advisories in the default hook, even in block mode; use context-mode, targeted tests, or summarized logs for large output.
-
-## RTK Windows/MINGW64 Strategy
-
-RTK is optional. The installer detects `rtk` if it already exists. If not installed, native Windows, Git Bash, MINGW, MSYS, and Cygwin skip RTK auto-install and record a warning or skipped item. Use WSL2 or manual RTK installation if a project requires it. The stack remains usable without RTK through hooks, policy, codebase-memory-mcp guidance, context-mode guidance, and benchmark reports.
+PowerShell does not support Bash heredoc syntax such as `python - <<'PY'`. Use the Node CLI or run Bash scripts inside Git Bash/WSL2.
 
 ## Tool Strategy
 
 - `codebase-memory-mcp`: default code discovery route for symbols, callers, callees, snippets, and architecture. Use it before broad `Read`, `Grep`, or `Glob`.
-- `context-mode`: large output governance tool for logs and long command output. It is complementary to code discovery, not a replacement for codebase-memory-mcp.
+- `context-mode`: large output governance for logs and long command output. It complements code discovery rather than replacing it.
 - `Caveman`: optional concise output style/tooling. If unavailable, use `.claude/output-styles/token-lean.md`.
 - `Headroom`: disabled by default. Enable only with `ENABLE_HEADROOM=1` after agreeing to setup, measurement, and rollback.
+- `RTK`: optional. Native Windows, Git Bash, MINGW, MSYS, and Cygwin skip RTK auto-install by default if it is not already installed.
 - `codegraph`: optional duplicate MCP. If both `codebase-memory-mcp` and `codegraph` exist, prefer codebase-memory-mcp and remove codegraph if it creates duplicate context.
 
 Project-local MCP setup is optional. Start from `.mcp.local.example.json`, pin reviewed versions, avoid duplicate global/project servers, and record tool-list, connection, cache, rate-limit, read-only, and stability evidence with `docs/mcp-local-smoke.md`.
 
-For long handoffs, use `docs/context-pack-template.md` to keep evidence top-k, snippets bounded, risks explicit, and verification concrete.
-
-## Verification And Benchmark
-
-Run local checks:
-
-```bash
-npm run lint
-npm run test:hooks
-npm test
-```
-
-Verify a scaffolded target:
-
-```bash
-node bin/cts.js verify --target .
-```
-
-Run synthetic baseline/post benchmark and compare:
-
-```bash
-node bin/cts.js benchmark synthetic-only --target .
-node bin/cts.js collect-metrics .token-stack/reports
-node bin/cts.js compare-metrics .token-stack/reports
-```
-
-Important outputs:
-
-- `.token-stack/reports/verify-report.md`
-- `.token-stack/reports/verify-report.json`
-- `.token-stack/reports/baseline/*.json`
-- `.token-stack/reports/post/*.json`
-- `.token-stack/reports/metrics-summary.json`
-- `.token-stack/reports/metrics-summary.md`
-
 ## Rollback
 
-Scaffold creates `.bak.*` backups before changing an existing `.claude/settings.json` or overwriting any copied template destination. To roll back:
+Fast disable:
+
+```bash
+export TOKEN_GUARD_MODE=off
+export CBM_GATE_MODE=off
+```
+
+Scaffold creates `.bak.*` backups before changing an existing `.claude/settings.json` or overwriting copied template destinations. To roll back:
 
 1. Restore the relevant `.claude/settings.json.bak.*` file.
 2. Remove copied hook files from `.claude/hooks/`.
@@ -170,56 +210,92 @@ See [docs/rollback.md](docs/rollback.md) and [docs/claude-token-stack-rollback.m
 
 ## FAQ
 
-### Does this guarantee token reduction?
+### Is this a token compression tool?
 
-No. It provides guardrails and measurement. Synthetic benchmark data is only a sanity check; real repository impact must be measured with baseline/post runs.
+No. It is a repo-level governance toolkit for Claude Code and AI coding agents. It focuses on policy, hooks, MCP guidance, verification, benchmark, and rollback.
 
-### Why not block immediately?
+### Does it guarantee token reduction?
 
-Broad commands are sometimes legitimate during incident response or unfamiliar repo exploration. Warn-first mode gives the team evidence before enforcement.
+No. It helps detect and measure avoidable context waste. Real impact depends on repository size, workflow, agent behavior, and adoption mode.
 
-### Does it read secrets?
+### Why warn-first?
 
-It does not intentionally read secrets and does not require uploading secrets. Templates deny common `Read` paths, and the Bash guard warns or blocks common shell reads such as `cat .env` in warn/block mode. This is not a full DLP system; extend the deny list for project-specific secret names and do not run benchmarks or issue reports with credentials, `.env` content, private keys, or production tokens.
+Broad commands and large reads are sometimes legitimate during incident response or unfamiliar repo exploration. Warn-first mode lets teams collect evidence and tune false positives before blocking.
+
+### Does it require remote tools?
+
+No. The default path is local-first. Optional tools require explicit opt-in.
 
 ### Can I use only scaffold without optional tools?
 
 Yes. `scaffold` and `verify` work without remote installers. Optional tools are detection/install guidance only.
 
-### What if PowerShell fails on Bash syntax?
+### Can I use it on Windows?
 
-Use `node bin/cts.js ...` from PowerShell, or run Bash scripts in Git Bash/WSL2. Do not paste Bash heredocs into PowerShell.
+Yes. The Node CLI and hook wrappers are designed for cross-platform use, including PowerShell, Git Bash, WSL2, macOS, and Linux.
 
-### What if Claude settings have broken Windows hook paths?
+### How do I roll it back?
 
-Run:
+Use the generated backups, disable modes, and rollback docs. The stack is designed to be removable without treating adoption as a one-way migration.
 
-```powershell
-powershell -ExecutionPolicy Bypass -File .\bin\fix-windows-claude-settings.ps1 -DryRun
-powershell -ExecutionPolicy Bypass -File .\bin\fix-windows-claude-settings.ps1
-```
+## Roadmap
 
-### How do I remove optional codegraph?
+Planned areas:
 
-Run:
+- stronger benchmark examples from real repositories;
+- more hook smoke tests across Windows, macOS, Linux, Git Bash, and WSL2;
+- clearer MCP deduplication guidance;
+- improved metrics summaries for maintainers;
+- optional templates for team rollout documentation;
+- more examples for open-source and enterprise repository adoption.
 
-```powershell
-powershell -ExecutionPolicy Bypass -File .\bin\remove-optional-codegraph.ps1 -DryRun
-```
+See [ROADMAP.md](ROADMAP.md) for details.
 
-or:
+## Contributing
+
+Contributions are welcome, especially:
+
+- real benchmark reports with anonymized data;
+- Windows, macOS, Linux, Git Bash, and WSL2 compatibility fixes;
+- hook false-positive reductions;
+- MCP guidance improvements;
+- documentation examples from real adoption paths;
+- security and rollback review.
+
+Start with:
 
 ```bash
-claude mcp remove codegraph
+npm install
+npm test
 ```
+
+Please read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request.
+
+## Security
+
+`claude-token-stack` does not intentionally read secrets and does not require uploading repository data.
+
+The default setup is local-first. Remote optional tool installation is disabled unless explicitly enabled:
+
+```bash
+TOKEN_STACK_ALLOW_REMOTE_INSTALL=1 \
+CONTEXT_MODE_NPM_SPEC=context-mode@REVIEWED_VERSION \
+CODEBASE_MEMORY_MCP_NPM_SPEC=codebase-memory-mcp@REVIEWED_VERSION \
+npx claude-token-stack install-tools
+```
+
+Remote npm/npx installs require pinned package specs by default. Set `TOKEN_STACK_ALLOW_UNPINNED_REMOTE_INSTALL=1` only in disposable or otherwise reviewed environments.
+
+This is not a full DLP system. Review generated policies, extend deny lists for project-specific secrets, and avoid including credentials, `.env` content, private keys, or production tokens in benchmark reports.
+
+For details, see [SECURITY.md](SECURITY.md).
 
 ## Documentation
 
-- [Architecture](docs/architecture.md)
+- [Getting Started](docs/getting-started.md)
 - [Installation](docs/installation.md)
-- [Validation Playbook](docs/validation-playbook.md)
-- [Windows Compatibility](docs/windows-compatibility.md)
-- [Security Model](docs/security-model.md)
-- [MCP Deduplication](docs/mcp-deduplication.md)
+- [Architecture](docs/architecture.md)
 - [Benchmark](docs/benchmark.md)
+- [Validation Playbook](docs/validation-playbook.md)
 - [Rollback](docs/rollback.md)
+- [Security Model](docs/security-model.md)
