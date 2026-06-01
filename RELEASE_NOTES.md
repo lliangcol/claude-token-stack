@@ -1,8 +1,16 @@
-# Claude Token Stack v0.1.0 Release Notes Draft
+# Claude Token Stack v0.1.0
 
-## What is Claude Token Stack
+## Why star this
 
-Claude Token Stack is a local-first Claude Code token governance kit. It scaffolds project policy, warn-first hooks, output style guidance, validation scripts, benchmark helpers, and rollback documentation so teams can measure and reduce avoidable context waste without relying on fixed savings claims.
+Claude Token Stack gives repositories a practical operating layer for Claude Code and AI coding agents: warn-first context guards, local verification reports, benchmark helpers, MCP guidance, and rollback docs.
+
+Install or star it if you maintain a repository where agents are used repeatedly and you want to:
+
+- catch noisy commands and broad reads before they become prompt bloat;
+- collect evidence before changing team behavior from warn mode to block mode;
+- keep adoption local-first, cross-platform, and reversible.
+
+The project does not claim a fixed token-savings percentage. It helps teams measure and reduce avoidable context waste with reviewable local evidence.
 
 ## Key features
 

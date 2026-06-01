@@ -1,12 +1,24 @@
 # claude-token-stack
 
-## Hero
+[![CI](https://github.com/lliangcol/claude-token-stack/actions/workflows/ci.yml/badge.svg)](https://github.com/lliangcol/claude-token-stack/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Node.js >=18](https://img.shields.io/badge/node-%3E%3D18-339933.svg)](package.json)
+[![Claude Code hooks](https://img.shields.io/badge/Claude%20Code-hooks-111827.svg)](templates/.claude/settings.json)
 
-**Repo-level governance toolkit for Claude Code and AI coding agents: policy, hooks, MCP guidance, verification, benchmarks, and rollback.**
+**Stop Claude Code and AI coding agents from wasting repository context on noisy reads, broad searches, duplicate MCP output, and unmeasured optimization changes.**
 
-`claude-token-stack` helps maintainers and engineering teams make agent sessions more bounded, measurable, and reversible across real repositories.
+`claude-token-stack` is a local-first governance kit for real repositories. It scaffolds warn-first hooks, project policy, MCP guidance, verification reports, benchmark helpers, and rollback docs so teams can make agent sessions bounded, measurable, and reversible.
 
-It is not a one-off token compression tool. It is a repository-level governance kit for reducing avoidable context waste through warn-first controls, benchmark evidence, cross-platform setup, and safe rollback paths.
+![Claude Token Stack social preview](assets/social-preview.svg)
+
+Use it when you want to:
+
+- warn on noisy commands such as `tree`, `ls -R`, `grep -R`, broad `find`, and full log dumps;
+- guide agents toward bounded discovery before whole-file reads or broad `Grep`/`Glob`;
+- generate `.token-stack/reports/` evidence before switching from warn mode to block mode;
+- keep adoption local-first, cross-platform, and rollback-ready.
+
+It is not a one-off token compression tool, a generic linter, or a guaranteed savings claim. It is the repository operating layer around agent context behavior.
 
 ## Why Now
 
@@ -35,6 +47,37 @@ Use this if you are:
 
 This may not be for you if you only need a prompt-shortening utility, a generic linter, or a guaranteed token-savings percentage.
 
+## 30-Second Demo
+
+Scaffold the stack into a repository, then run noisy agent-like actions through the hooks:
+
+```bash
+node bin/cts.js scaffold --target .tmp/demo-review
+```
+
+Warn-first shell guard:
+
+```json
+{"command":"tree","violations":["Avoid raw tree. Use targeted rg --files with a narrow path."],"mode":"warn"}
+```
+
+Broad code-discovery gate in block mode:
+
+```json
+{"tool_name":"Grep","mode":"block","block_reasons":["broad Grep path","broad Grep glob"]}
+```
+
+Metrics summary from the same demo:
+
+```text
+recommend_enter_block: false
+cost_change_usd: 0
+```
+
+This is synthetic wiring evidence, not a token-savings claim. It proves the installed policy, hooks, logs, reports, and rollback path are connected before you test on representative tasks.
+
+See [docs/demo.md](docs/demo.md) for the full copy-paste demo.
+
 ## What You Get
 
 `claude-token-stack` scaffolds:
@@ -57,7 +100,7 @@ Core files and behavior include:
 
 ## Quickstart
 
-From this repository:
+Try from a local checkout:
 
 ```bash
 npm install
@@ -65,7 +108,7 @@ node bin/cts.js scaffold --target /path/to/your-repo
 node bin/cts.js verify --target /path/to/your-repo
 ```
 
-After npm publication:
+When the package is available from npm:
 
 ```bash
 npx claude-token-stack scaffold
@@ -114,6 +157,15 @@ A conservative path is to switch `TOKEN_GUARD_MODE=block` first, keep `CBM_GATE_
 
 This project is designed to produce evidence instead of claims.
 
+Current demo evidence included in this repository shows:
+
+| Signal | Demo result | Meaning |
+| --- | --- | --- |
+| Noisy shell command | `tree` produces a warn-mode violation | The shell guard catches high-context commands without blocking first adoption. |
+| Broad code search | broad `Grep` with `path="."` and `glob="**/*"` blocks in block mode | The code-discovery gate can enforce bounded search after tuning. |
+| Metrics decision | `recommend_enter_block: false` | Synthetic data alone is not enough to recommend stricter rollout. |
+| Generated artifacts | `.claude/logs/*` and `.token-stack/reports/*` | Adoption produces reviewable local evidence. |
+
 Verification and benchmark runs generate artifacts such as:
 
 - `.token-stack/reports/verify-report.md`
@@ -131,16 +183,7 @@ node bin/cts.js collect-metrics .token-stack/reports
 node bin/cts.js compare-metrics .token-stack/reports
 ```
 
-Example evidence table to fill with measured data:
-
-| Scenario | Baseline | Post-adoption | Result |
-| --- | --- | --- | --- |
-| Broad shell output | TBD | TBD | TBD |
-| Full-file reads before discovery | TBD | TBD | TBD |
-| Duplicate MCP context | TBD | TBD | TBD |
-| Task success | TBD | TBD | TBD |
-
-Do not replace `TBD` with estimates. This README should only claim measured outcomes.
+For real repository adoption, publish the generated baseline/post report files or a summarized table backed by those files. Do not publish estimated savings or unmeasured percentages.
 
 ## Comparison
 

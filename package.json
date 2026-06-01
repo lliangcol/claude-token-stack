@@ -22,6 +22,7 @@
     "templates/.claude/hooks/*.py",
     "templates/.claude/output-styles/*.md",
     "templates/docs/*.md",
+    "assets/*.svg",
     "docs/**/*.md",
     "benchmarks/*.md",
     "prompts/AGENT_MASTER_PROMPT.md",
