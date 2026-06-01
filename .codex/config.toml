@@ -1,0 +1,7 @@
+[shell_environment_policy]
+inherit = "core"
+
+[shell_environment_policy.set]
+TOKEN_GUARD_MODE = "warn"
+CBM_GATE_MODE = "warn"
+ENABLE_HEADROOM = "0"

@@ -1,0 +1,42 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node -e \"const path=require('path');const {spawnSync}=require('child_process');const root=process.env.CLAUDE_PROJECT_DIR||process.cwd();const runner=path.join(root,'.claude','hooks','run-python-hook.js');const hook=path.join(root,'.claude','hooks','bash-token-guard.py');const result=spawnSync(process.execPath,[runner,hook],{stdio:'inherit',env:process.env,shell:false});if(result.error){console.error(result.error.message);process.exit(2)}process.exit(result.status??2);\"; exit $LASTEXITCODE"
+          }
+        ]
+      },
+      {
+        "matcher": "Read",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node -e \"const path=require('path');const {spawnSync}=require('child_process');const root=process.env.CLAUDE_PROJECT_DIR||process.cwd();const runner=path.join(root,'.claude','hooks','run-python-hook.js');const hook=path.join(root,'.claude','hooks','cbm-gate.py');const result=spawnSync(process.execPath,[runner,hook],{stdio:'inherit',env:process.env,shell:false});if(result.error){console.error(result.error.message);process.exit(2)}process.exit(result.status??2);\"; exit $LASTEXITCODE"
+          }
+        ]
+      },
+      {
+        "matcher": "Grep",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node -e \"const path=require('path');const {spawnSync}=require('child_process');const root=process.env.CLAUDE_PROJECT_DIR||process.cwd();const runner=path.join(root,'.claude','hooks','run-python-hook.js');const hook=path.join(root,'.claude','hooks','cbm-gate.py');const result=spawnSync(process.execPath,[runner,hook],{stdio:'inherit',env:process.env,shell:false});if(result.error){console.error(result.error.message);process.exit(2)}process.exit(result.status??2);\"; exit $LASTEXITCODE"
+          }
+        ]
+      },
+      {
+        "matcher": "Glob",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node -e \"const path=require('path');const {spawnSync}=require('child_process');const root=process.env.CLAUDE_PROJECT_DIR||process.cwd();const runner=path.join(root,'.claude','hooks','run-python-hook.js');const hook=path.join(root,'.claude','hooks','cbm-gate.py');const result=spawnSync(process.execPath,[runner,hook],{stdio:'inherit',env:process.env,shell:false});if(result.error){console.error(result.error.message);process.exit(2)}process.exit(result.status??2);\"; exit $LASTEXITCODE"
+          }
+        ]
+      }
+    ]
+  }
+}
