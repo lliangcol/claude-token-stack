@@ -296,6 +296,7 @@ For details, see [SECURITY.md](SECURITY.md).
 - [Installation](docs/installation.md)
 - [Architecture](docs/architecture.md)
 - [Benchmark](docs/benchmark.md)
+- [Demo Repo Plans](docs/demo-repo-plans.md)
 - [Validation Playbook](docs/validation-playbook.md)
 - [Rollback](docs/rollback.md)
 - [Security Model](docs/security-model.md)
