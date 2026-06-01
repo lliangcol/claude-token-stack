@@ -34,10 +34,27 @@ assert.ok(
 assert.match(shellScript, /exit 1/, "all mode should exit non-zero when verify fails");
 
 const packageJson = JSON.parse(fs.readFileSync(path.join(repoRoot, "package.json"), "utf8"));
-assert.ok(!packageJson.homepage, "package metadata should not point to an unpublished homepage");
-assert.ok(!packageJson.repository, "package metadata should not point to an unpublished repository");
-assert.ok(!packageJson.bugs, "package metadata should not point to unpublished issue tracker");
+assert.strictEqual(packageJson.homepage, "https://github.com/lliangcol/claude-token-stack#readme");
+assert.deepStrictEqual(packageJson.repository, {
+  type: "git",
+  url: "git+https://github.com/lliangcol/claude-token-stack.git",
+});
+assert.deepStrictEqual(packageJson.bugs, {
+  url: "https://github.com/lliangcol/claude-token-stack/issues",
+});
 assert.ok(packageJson.files.includes("templates/.mcp.local.example.json"), "package should include local MCP template");
+assert.ok(!packageJson.files.includes("docs/**/*.md"), "package docs surface should be explicitly allowlisted");
+assert.ok(
+  !packageJson.files.some((entry) => entry.startsWith("docs/release/")),
+  "GitHub release-management docs should stay out of the npm package"
+);
+assert.ok(packageJson.files.includes("README_zh-CN.md"), "package should include Chinese README");
+assert.ok(packageJson.files.includes("examples/README.md"), "package should include examples index");
+assert.ok(packageJson.files.includes("docs/case-studies/synthetic-demo.md"), "package should include npm-user case study docs");
+assert.ok(
+  packageJson.files.includes("examples/demo-windows-path-space/scripts/quote-paths.ps1"),
+  "package should include static demo files"
+);
 
 const unattendedRunner = fs.readFileSync(path.join(repoRoot, "bin", "cts-run-agent-unattended.sh"), "utf8");
 const benchmarkRunner = fs.readFileSync(path.join(repoRoot, "bin", "run-token-benchmark.sh"), "utf8");
@@ -341,6 +358,49 @@ assert.strictEqual(
 const compared = JSON.parse(compareResult.stdout);
 assert.strictEqual(compared.tasks["code-discovery"].baseline.input_tokens, 100);
 assert.strictEqual(compared.tasks["code-discovery"].post.input_tokens, 50);
+
+const syntheticMetricsTarget = path.join(tempRoot, "synthetic metrics target");
+for (const phase of ["baseline", "post"]) {
+  fs.mkdirSync(path.join(syntheticMetricsTarget, ".token-stack", "reports", phase), { recursive: true });
+}
+for (const task of ["code-discovery", "test-failure", "long-log"]) {
+  fs.writeFileSync(
+    path.join(syntheticMetricsTarget, ".token-stack", "reports", "baseline", `${task}.json`),
+    JSON.stringify({
+      mode: "synthetic-only",
+      phase: "baseline",
+      task,
+      task_success: true,
+      metrics: { raw_large_output_events: 1, blocked_commands: 0, cost_usd: 1 },
+    }),
+    "utf8"
+  );
+  fs.writeFileSync(
+    path.join(syntheticMetricsTarget, ".token-stack", "reports", "post", `${task}.json`),
+    JSON.stringify({
+      mode: "synthetic-only",
+      phase: "post",
+      task,
+      task_success: true,
+      metrics: { raw_large_output_events: 0, blocked_commands: 1, cost_usd: 0.5 },
+    }),
+    "utf8"
+  );
+}
+const syntheticCompareResult = spawnSync(
+  process.execPath,
+  [path.join(repoRoot, "bin", "cts.js"), "compare-metrics", "--target", syntheticMetricsTarget, "--dry-run"],
+  { encoding: "utf8" }
+);
+assert.strictEqual(
+  syntheticCompareResult.status,
+  0,
+  `synthetic compare-metrics failed\nstdout:\n${syntheticCompareResult.stdout}\nstderr:\n${syntheticCompareResult.stderr}`
+);
+const syntheticCompared = JSON.parse(syntheticCompareResult.stdout);
+assert.strictEqual(syntheticCompared.recommend_enter_block, false, "synthetic-only evidence must not recommend block mode");
+assert.deepStrictEqual(syntheticCompared.evidence_modes, ["synthetic-only"]);
+assert.strictEqual(syntheticCompared.recommendation_reason.representative_evidence, false);
 
 const ps = findPowerShell();
 if (ps) {

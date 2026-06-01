@@ -1,0 +1,8 @@
+[project]
+name = "demo-python-service"
+version = "0.0.0"
+description = "Minimal static Python service demo for claude-token-stack."
+requires-python = ">=3.10"
+
+[tool.demo]
+purpose = "context-governance-wiring"

@@ -5,54 +5,22 @@
 [![Node.js >=18](https://img.shields.io/badge/node-%3E%3D18-339933.svg)](package.json)
 [![Claude Code hooks](https://img.shields.io/badge/Claude%20Code-hooks-111827.svg)](templates/.claude/settings.json)
 
-**Stop Claude Code and AI coding agents from wasting repository context on noisy reads, broad searches, duplicate MCP output, and unmeasured optimization changes.**
+Repo-level Claude Code token governance kit for teams that want agent work to be bounded, measurable, reversible, and cross-platform.
 
-`claude-token-stack` is a local-first governance kit for real repositories. It scaffolds warn-first hooks, project policy, MCP guidance, verification reports, benchmark helpers, and rollback docs so teams can make agent sessions bounded, measurable, and reversible.
+`claude-token-stack` scaffolds warn-first hooks, project policy, MCP guidance, verification reports, synthetic benchmark helpers, and rollback docs into a repository. It is useful when Claude Code or other AI coding agents repeatedly work in the same repo and you need evidence before changing team behavior.
+
+[中文说明](README_zh-CN.md) | [30-second demo](docs/demo.md) | [examples](examples/README.md) | [v0.1.0-rc checklist](https://github.com/lliangcol/claude-token-stack/blob/main/docs/release/v0.1.0-rc-checklist.md)
 
 ![Claude Token Stack social preview](assets/social-preview.svg)
 
-Use it when you want to:
-
-- warn on noisy commands such as `tree`, `ls -R`, `grep -R`, broad `find`, and full log dumps;
-- guide agents toward bounded discovery before whole-file reads or broad `Grep`/`Glob`;
-- generate `.token-stack/reports/` evidence before switching from warn mode to block mode;
-- keep adoption local-first, cross-platform, and rollback-ready.
-
-It is not a one-off token compression tool, a generic linter, or a guaranteed savings claim. It is the repository operating layer around agent context behavior.
-
-## Why Now
-
-AI coding agents are moving from individual experiments into shared engineering workflows. That makes unmanaged context more than a cost problem: it affects speed, reviewability, reproducibility, and team trust.
-
-Most avoidable waste comes from ordinary repository behavior:
-
-- recursive shell output such as `tree`, `ls -R`, `grep -R`, broad `find`, and full log dumps;
-- whole-file reads before symbol, caller, or snippet discovery;
-- duplicate MCP servers returning overlapping context;
-- generated, vendor, build, lock, or log files entering prompts;
-- optimization tools enabled without a baseline, post measurement, or rollback path;
-- missing project-local policy, so every agent session rediscovers the same constraints.
-
-`claude-token-stack` gives the repository a practical operating layer: policy, hooks, MCP guidance, verification, benchmark reports, and rollback.
-
-## Who This Is For
-
-Use this if you are:
-
-- maintaining a repository where Claude Code or AI coding agents are used repeatedly;
-- standardizing AI coding workflows across a team;
-- trying to reduce avoidable context waste without blocking useful exploration too early;
-- evaluating MCP tools and want guidance against duplicate or noisy context;
-- looking for benchmark and rollback evidence before enforcing stricter controls.
-
-This may not be for you if you only need a prompt-shortening utility, a generic linter, or a guaranteed token-savings percentage.
-
 ## 30-Second Demo
 
-Scaffold the stack into a repository, then run noisy agent-like actions through the hooks:
+From a local checkout:
 
 ```bash
+npm install
 node bin/cts.js scaffold --target .tmp/demo-review
+node bin/cts.js verify --target .tmp/demo-review
 ```
 
 Warn-first shell guard:
@@ -61,22 +29,93 @@ Warn-first shell guard:
 {"command":"tree","violations":["Avoid raw tree. Use targeted rg --files with a narrow path."],"mode":"warn"}
 ```
 
-Broad code-discovery gate in block mode:
+Broad code-discovery gate after explicit block-mode tuning:
 
 ```json
 {"tool_name":"Grep","mode":"block","block_reasons":["broad Grep path","broad Grep glob"]}
 ```
 
-Metrics summary from the same demo:
+Synthetic benchmark summary:
 
 ```text
 recommend_enter_block: false
-cost_change_usd: 0
+evidence_modes: synthetic-only
+recommendation_note: synthetic-only evidence cannot recommend block mode
 ```
 
-This is synthetic wiring evidence, not a token-savings claim. It proves the installed policy, hooks, logs, reports, and rollback path are connected before you test on representative tasks.
+This demo proves wiring only: policy, hooks, logs, reports, benchmark commands, and rollback are connected. It is not proof of real token or cost savings. See [docs/demo.md](docs/demo.md) and the copyable demo repositories under [examples/](examples/README.md).
 
-See [docs/demo.md](docs/demo.md) for the full copy-paste demo.
+## Who It Is For
+
+Use this when you:
+
+- maintain a repository where Claude Code or AI coding agents are used repeatedly;
+- need repo-local policy instead of a one-off prompt-shortening trick;
+- want warn-first adoption before any block-mode enforcement;
+- need verification and benchmark artifacts before changing team defaults;
+- work across Windows PowerShell, Git Bash, WSL2, macOS, or Linux;
+- want rollback instructions before adoption becomes sticky.
+
+This is probably not the right tool if you only need a single token compression command, a generic linter, a hosted analytics service, or a fixed savings promise.
+
+## What It Is Not
+
+`claude-token-stack` is not a single-purpose token compression tool. It is the repository operating layer around agent context behavior.
+
+It does not guarantee a fixed token or cost reduction percentage. Any savings number should come from one of these evidence types and be labeled accordingly:
+
+- a synthetic demo or benchmark report;
+- a controlled benchmark on representative tasks;
+- a real case report with baseline/post evidence files.
+
+Do not publish estimated savings or unmeasured percentages as project claims.
+
+## Real Proof
+
+The current repository includes synthetic/demo evidence only. That is enough to show that the governance loop works, but not enough to claim real-world savings.
+
+| Signal | Demo result | Meaning |
+| --- | --- | --- |
+| Noisy shell command | `tree` produces a warn-mode violation | The shell guard catches high-context commands without blocking first adoption. |
+| Broad code search | broad `Grep` with `path="."` and `glob="**/*"` blocks in block mode | The code-discovery gate can enforce bounded search after tuning. |
+| Metrics decision | `recommend_enter_block: false` | Synthetic data alone is not enough to recommend stricter rollout. |
+| Generated artifacts | `.claude/logs/*` and `.token-stack/reports/*` | Adoption produces local evidence that can be reviewed or deleted. |
+
+Evidence files commonly include:
+
+- `.token-stack/reports/verify-report.md`
+- `.token-stack/reports/verify-report.json`
+- `.token-stack/reports/baseline/*.json`
+- `.token-stack/reports/post/*.json`
+- `.token-stack/reports/metrics-summary.json`
+- `.token-stack/reports/metrics-summary.md`
+
+See [docs/case-studies/synthetic-demo.md](docs/case-studies/synthetic-demo.md) for the case-study format used by this RC.
+
+## Quickstart
+
+Try from a local checkout:
+
+```bash
+npm install
+node bin/cts.js scaffold --target /path/to/your-repo
+node bin/cts.js verify --target /path/to/your-repo
+```
+
+After an npm release is available:
+
+```bash
+npx claude-token-stack scaffold
+npx claude-token-stack verify
+```
+
+Default posture:
+
+- warn-first, not block-first;
+- offline-first and local-first;
+- remote optional installs disabled unless explicitly enabled;
+- benchmark-ready so adoption can be measured;
+- rollback-ready so changes can be undone cleanly.
 
 ## What You Get
 
@@ -84,7 +123,7 @@ See [docs/demo.md](docs/demo.md) for the full copy-paste demo.
 
 - **Policy**: project-local Claude Code token and context rules.
 - **Hooks**: warn-first guards for noisy shell commands, broad reads, greps, and globs.
-- **MCP guidance**: recommendations for bounded discovery and duplicate MCP avoidance.
+- **MCP guidance**: bounded discovery guidance and duplicate MCP avoidance.
 - **Verification**: scripts and reports to confirm the stack is installed correctly.
 - **Benchmarking**: baseline/post metrics for adoption decisions.
 - **Rollback**: backups, disable modes, and removal instructions.
@@ -97,30 +136,6 @@ Core files and behavior include:
 - `run-python-hook.js` for Windows, WSL2, macOS, Linux, Git Bash, and PowerShell hook execution;
 - optional guidance for RTK, Headroom, Caveman, context-mode, codebase-memory-mcp, and local MCP setup;
 - verification and benchmark artifacts under `.token-stack/reports/`.
-
-## Quickstart
-
-Try from a local checkout:
-
-```bash
-npm install
-node bin/cts.js scaffold --target /path/to/your-repo
-node bin/cts.js verify --target /path/to/your-repo
-```
-
-When the package is available from npm:
-
-```bash
-npx claude-token-stack scaffold
-npx claude-token-stack verify
-```
-
-Default behavior:
-
-- warn-first, not block-first;
-- local-first, with remote optional tools disabled by default;
-- benchmark-ready, so adoption can be measured;
-- rollback-ready, so changes can be undone cleanly.
 
 ## Recommended Rollout
 
@@ -149,33 +164,20 @@ Consider blocking only after:
 - post-adoption tasks still pass;
 - raw large-output events are not worse than baseline;
 - cost or token metrics are not worse than baseline;
-- the team has reviewed false positives in `.claude/logs/token-guard.log` and `.claude/logs/cbm-gate.log`.
+- false positives in `.claude/logs/token-guard.log` and `.claude/logs/cbm-gate.log` have been reviewed.
 
 A conservative path is to switch `TOKEN_GUARD_MODE=block` first, keep `CBM_GATE_MODE=warn`, and evaluate broad `Grep`/`Glob` blocking later. Test and build commands remain warn-only advisories in the default hook even when block mode is enabled.
 
-## Real Proof
+## Verification And Benchmark
 
-This project is designed to produce evidence instead of claims.
+Repository checks:
 
-Current demo evidence included in this repository shows:
+```bash
+npm test
+npm pack --dry-run
+```
 
-| Signal | Demo result | Meaning |
-| --- | --- | --- |
-| Noisy shell command | `tree` produces a warn-mode violation | The shell guard catches high-context commands without blocking first adoption. |
-| Broad code search | broad `Grep` with `path="."` and `glob="**/*"` blocks in block mode | The code-discovery gate can enforce bounded search after tuning. |
-| Metrics decision | `recommend_enter_block: false` | Synthetic data alone is not enough to recommend stricter rollout. |
-| Generated artifacts | `.claude/logs/*` and `.token-stack/reports/*` | Adoption produces reviewable local evidence. |
-
-Verification and benchmark runs generate artifacts such as:
-
-- `.token-stack/reports/verify-report.md`
-- `.token-stack/reports/verify-report.json`
-- `.token-stack/reports/baseline/*.json`
-- `.token-stack/reports/post/*.json`
-- `.token-stack/reports/metrics-summary.json`
-- `.token-stack/reports/metrics-summary.md`
-
-Run synthetic baseline/post benchmarks and compare:
+Synthetic baseline/post workflow:
 
 ```bash
 node bin/cts.js benchmark synthetic-only --target .
@@ -183,26 +185,11 @@ node bin/cts.js collect-metrics .token-stack/reports
 node bin/cts.js compare-metrics .token-stack/reports
 ```
 
-For real repository adoption, publish the generated baseline/post report files or a summarized table backed by those files. Do not publish estimated savings or unmeasured percentages.
-
-## Comparison
-
-| Capability | Token compression tool | Context summarizer | MCP discovery tool | Generic linter | claude-token-stack |
-| --- | --- | --- | --- | --- | --- |
-| Repo-level policy | Usually no | Usually no | No | Sometimes | Yes |
-| Claude Code hooks | No | No | No | No | Yes |
-| Warn-first rollout | Rare | Rare | No | Sometimes | Yes |
-| MCP guidance | No | No | Yes | No | Yes |
-| Verification workflow | Rare | Rare | Rare | Sometimes | Yes |
-| Benchmark workflow | Rare | Rare | Rare | No | Yes |
-| Rollback docs | Rare | Rare | No | No | Yes |
-| Cross-platform setup guidance | Varies | Varies | Varies | Varies | Yes |
-
-`claude-token-stack` complements compression and discovery tools. It provides the repository-level governance layer around them.
+The benchmark workflow is for adoption decisions. It should not be turned into a public savings claim without representative baseline/post evidence.
 
 ## Cross-Platform Notes
 
-macOS and Linux can run the Bash scripts directly:
+macOS and Linux can run Bash scripts directly:
 
 ```bash
 bash bin/install-claude-token-stack.sh scaffold
@@ -210,7 +197,7 @@ bash bin/verify-claude-token-stack.sh
 bash bin/run-token-benchmark.sh synthetic-only
 ```
 
-Windows users should prefer the Node CLI from PowerShell for scaffold and metrics commands:
+Windows users should prefer the Node CLI from PowerShell for scaffold, collect-metrics, compare-metrics, and direct hook smoke tests:
 
 ```powershell
 node .\bin\cts.js scaffold --target .
@@ -223,8 +210,8 @@ PowerShell does not support Bash heredoc syntax such as `python - <<'PY'`. Use t
 
 ## Tool Strategy
 
-- `codebase-memory-mcp`: default code discovery route for symbols, callers, callees, snippets, and architecture. Use it before broad `Read`, `Grep`, or `Glob`.
-- `context-mode`: large output governance for logs and long command output. It complements code discovery rather than replacing it.
+- `codebase-memory-mcp`: preferred code discovery route for symbols, callers, callees, snippets, and architecture when indexed.
+- `context-mode`: large output governance for logs and long command output.
 - `Caveman`: optional concise output style/tooling. If unavailable, use `.claude/output-styles/token-lean.md`.
 - `Headroom`: disabled by default. Enable only with `ENABLE_HEADROOM=1` after agreeing to setup, measurement, and rollback.
 - `RTK`: optional. Native Windows, Git Bash, MINGW, MSYS, and Cygwin skip RTK auto-install by default if it is not already installed.
@@ -241,6 +228,13 @@ export TOKEN_GUARD_MODE=off
 export CBM_GATE_MODE=off
 ```
 
+PowerShell:
+
+```powershell
+$env:TOKEN_GUARD_MODE = "off"
+$env:CBM_GATE_MODE = "off"
+```
+
 Scaffold creates `.bak.*` backups before changing an existing `.claude/settings.json` or overwriting copied template destinations. To roll back:
 
 1. Restore the relevant `.claude/settings.json.bak.*` file.
@@ -250,6 +244,17 @@ Scaffold creates `.bak.*` backups before changing an existing `.claude/settings.
 5. Keep `.token-stack/reports/` if you need adoption evidence; otherwise remove generated reports and logs.
 
 See [docs/rollback.md](docs/rollback.md) and [docs/claude-token-stack-rollback.md](docs/claude-token-stack-rollback.md).
+
+## RC / Release CTA
+
+This repository is being prepared for the GitHub `v0.1.0-rc` surface. Useful next actions:
+
+- try one static demo under [examples/](examples/README.md);
+- run `npm test` and `npm pack --dry-run`;
+- review the [v0.1.0-rc checklist](https://github.com/lliangcol/claude-token-stack/blob/main/docs/release/v0.1.0-rc-checklist.md);
+- file issues for false positives, Windows path behavior, benchmark gaps, and documentation gaps.
+
+No npm publish is required for this RC preparation pass.
 
 ## FAQ
 
@@ -277,15 +282,11 @@ Yes. `scaffold` and `verify` work without remote installers. Optional tools are 
 
 Yes. The Node CLI and hook wrappers are designed for cross-platform use, including PowerShell, Git Bash, WSL2, macOS, and Linux.
 
-### How do I roll it back?
-
-Use the generated backups, disable modes, and rollback docs. The stack is designed to be removable without treating adoption as a one-way migration.
-
 ## Roadmap
 
 Planned areas:
 
-- stronger benchmark examples from real repositories;
+- real case-study reports with anonymized evidence;
 - more hook smoke tests across Windows, macOS, Linux, Git Bash, and WSL2;
 - clearer MCP deduplication guidance;
 - improved metrics summaries for maintainers;
@@ -339,6 +340,9 @@ For details, see [SECURITY.md](SECURITY.md).
 - [Installation](docs/installation.md)
 - [Architecture](docs/architecture.md)
 - [Benchmark](docs/benchmark.md)
+- [Demo](docs/demo.md)
+- [Examples](examples/README.md)
+- [Case Studies](docs/case-studies/README.md)
 - [Demo Repo Plans](docs/demo-repo-plans.md)
 - [Validation Playbook](docs/validation-playbook.md)
 - [Rollback](docs/rollback.md)

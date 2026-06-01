@@ -37,13 +37,19 @@ def walk(obj: Any):
             yield from walk(value)
 
 
-def load_metrics(phase: str, task: str) -> dict[str, Any]:
+def load_task_record(phase: str, task: str) -> dict[str, Any]:
     path = root / phase / f"{task}.json"
     if not path.exists():
         return {}
     try:
-        data = json.loads(path.read_text(encoding="utf-8", errors="ignore"))
+        return json.loads(path.read_text(encoding="utf-8", errors="ignore"))
     except Exception:
+        return {}
+
+
+def load_metrics(phase: str, task: str) -> dict[str, Any]:
+    data = load_task_record(phase, task)
+    if not data:
         return {}
     metrics: dict[str, Any] = {}
     for key, value in walk(data):
@@ -91,7 +97,13 @@ def cache_hit_rate(metrics: dict[str, Any]) -> float | None:
 
 tasks: dict[str, Any] = {}
 totals = {"baseline": {}, "post": {}}
+evidence_modes: set[str] = set()
 for task in TASKS:
+    for phase in ["baseline", "post"]:
+        record = load_task_record(phase, task)
+        mode = record.get("mode")
+        if isinstance(mode, str):
+            evidence_modes.add(mode)
     base = load_metrics("baseline", task)
     post = load_metrics("post", task)
     comparison = {}
@@ -124,7 +136,9 @@ success_ok = totals["post"].get("task_success", 0) == len(TASKS)
 raw_not_worse = totals["post"].get("raw_large_output_events", 0) <= totals["baseline"].get("raw_large_output_events", 0)
 cost_not_worse = cost_post <= cost_base if cost_base else False
 has_blocks = totals["post"].get("blocked_commands", 0) > 0
-recommend_enter_block = bool(success_ok and raw_not_worse and cost_not_worse and has_blocks)
+synthetic_only = bool(evidence_modes) and evidence_modes <= {"synthetic-only"}
+representative_evidence = not synthetic_only
+recommend_enter_block = bool(success_ok and raw_not_worse and cost_not_worse and has_blocks and representative_evidence)
 
 summary = {
     "schema_version": 1,
@@ -141,12 +155,14 @@ summary = {
     },
     "cost_change_usd": cost_post - cost_base,
     "cost_change_pct": pct(cost_base, cost_post),
+    "evidence_modes": sorted(evidence_modes),
     "recommend_enter_block": recommend_enter_block,
     "recommendation_reason": {
         "post_task_success_all_passed": success_ok,
         "raw_large_output_events_not_worse": raw_not_worse,
         "cost_not_worse": cost_not_worse,
         "post_has_blocked_commands": has_blocks,
+        "representative_evidence": representative_evidence,
     },
 }
 
@@ -154,6 +170,10 @@ lines = ["# Metrics Summary", ""]
 lines.append(f"- recommend_enter_block: {str(recommend_enter_block).lower()}")
 lines.append(f"- cost_change_usd: {summary['cost_change_usd']}")
 lines.append(f"- cost_change_pct: {summary['cost_change_pct']}")
+if evidence_modes:
+    lines.append(f"- evidence_modes: {', '.join(sorted(evidence_modes))}")
+if synthetic_only:
+    lines.append("- recommendation_note: synthetic-only evidence cannot recommend block mode")
 for phase in ["baseline", "post"]:
     hit = summary["cache_hit_rate"][phase]
     lines.append(f"- {phase}_cache_hit_rate: {'n/a' if hit is None else f'{hit * 100:.1f}%'}")

@@ -1,7 +1,8 @@
 # Demo Repo Plans
 
 This document outlines three demo repository plans for showing `claude-token-stack`
-to different engineering teams.
+to different engineering teams. Concrete static demo repositories now live under
+`examples/`.
 
 中文摘要：三套 demo 分别面向 TypeScript 团队、Python 团队和多平台 Windows 团队；重点展示大仓上下文治理、warn-first 到 block 的评估闭环，以及 Windows/PowerShell/Git Bash/WSL2 兼容性。
 
@@ -137,7 +138,7 @@ node "$CTS_ROOT/bin/cts.js" verify --target .
 node "$CTS_ROOT/bin/cts.js" benchmark --target . synthetic-only
 ```
 
-## 3. Multi-Platform Windows Team: `demo-windows-cross-platform`
+## 3. Multi-Platform Windows Team: `demo-windows-path-space`
 
 Best fit for showing: Windows-first compatibility across PowerShell, Git Bash,
 WSL2, Node, Python hooks, path quoting, and rollback-ready adoption.
