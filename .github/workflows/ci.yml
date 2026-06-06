@@ -7,7 +7,21 @@ on:
       - main
       - master
 
+permissions:
+  contents: read
+
 jobs:
+  dependency-review:
+    name: dependency review
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/dependency-review-action@v4
+
   test:
     name: core validation (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
@@ -45,14 +59,13 @@ jobs:
 
       - name: Static checks
         run: |
-          node --check bin/cts.js
-          node --check templates/.claude/hooks/run-python-hook.js
-          python -m py_compile templates/.claude/hooks/bash-token-guard.py templates/.claude/hooks/cbm-gate.py bin/collect-metrics.py bin/compare-metrics.py
-          bash -n bin/install-claude-token-stack.sh
-          bash -n bin/verify-claude-token-stack.sh
-          bash -n bin/run-token-benchmark.sh
-          bash -n bin/cts-run-agent-unattended.sh
-          node -e "JSON.parse(require('fs').readFileSync('templates/.claude/settings.json', 'utf8'))"
+          npm run check:node
+          npm run check:python
+          npm run check:shell
+          npm run check:templates
+
+      - name: Native diagnostics
+        run: npm run check:native
 
       - name: Hook smoke tests
         run: npm run test:hooks

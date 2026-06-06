@@ -45,11 +45,12 @@ To opt in:
 
 ```bash
 TOKEN_STACK_ALLOW_REMOTE_INSTALL=1 \
-CONTEXT_MODE_NPM_SPEC=context-mode@REVIEWED_VERSION \
+CONTEXT_MODE_NPM_SPEC=context-mode@1.2.3 \
+CODEBASE_MEMORY_MCP_NPM_SPEC=codebase-memory-mcp@1.2.3 \
 npx claude-token-stack install-tools
 ```
 
-Use reviewed `package@version` specs for optional remote npm/npx installs. Unpinned installs require `TOKEN_STACK_ALLOW_UNPINNED_REMOTE_INSTALL=1`.
+Use reviewed exact semver specs such as `package@1.2.3` for optional remote npm/npx installs. Tags such as `package@latest` require `TOKEN_STACK_ALLOW_UNPINNED_REMOTE_INSTALL=1`.
 
 ## Modes
 
@@ -62,3 +63,10 @@ export ENABLE_HEADROOM=0
 ```
 
 Switch to block only after observing low false positives.
+
+Native diagnostics:
+
+```bash
+npx claude-token-stack doctor --no-write
+npx claude-token-stack audit-hooks --no-write
+```

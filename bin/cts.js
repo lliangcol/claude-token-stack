@@ -568,6 +568,23 @@ function runPython(script, extraArgs = []) {
   process.exit(2);
 }
 
+function runNodeTool(script, extraArgs = args.slice(1)) {
+  const target = targetDir();
+  ensureExistingTargetDir(target);
+  const scriptPath = path.join(root, "bin", script);
+  const result = spawnSync(process.execPath, [scriptPath, ...extraArgs], {
+    cwd: root,
+    stdio: "inherit",
+    env: Object.assign({}, process.env, { CTS_TARGET_DIR: target }),
+    shell: false
+  });
+  if (result.error) {
+    console.error(result.error.message);
+    process.exit(2);
+  }
+  process.exit(result.status ?? 2);
+}
+
 function ensureExistingTargetDir(target) {
   if (!fs.existsSync(target)) {
     console.error(`Target directory does not exist: ${target}`);
@@ -595,6 +612,28 @@ switch (command) {
   case "compare-metrics":
     runPython("compare-metrics.py", passthroughArgs());
     break;
+  case "doctor":
+    runNodeTool("doctor.js");
+    break;
+  case "audit-hooks":
+    runNodeTool("audit-hooks.js");
+    break;
+  case "pack-context":
+    runNodeTool("pack-context.js");
+    break;
+  case "analyze-logs":
+    runNodeTool("analyze-logs.js");
+    break;
+  case "ingest-usage":
+    runNodeTool("ingest-usage.js");
+    break;
+  case "events":
+    runNodeTool("event-store.js");
+    break;
+  case "preset":
+  case "presets":
+    runNodeTool("apply-preset.js");
+    break;
   case "tools":
   case "install-tools":
     runScript("install-claude-token-stack.sh", ["tools", ...passthroughArgs()]);
@@ -607,6 +646,6 @@ switch (command) {
     break;
   case "help":
   default:
-    console.log("Usage: claude-token-stack <scaffold|verify|benchmark|collect-metrics|compare-metrics|tools|all|advanced-unattended> [--target DIR] [dry-run|--dry-run]");
+    console.log("Usage: claude-token-stack <scaffold|verify|benchmark|collect-metrics|compare-metrics|doctor|audit-hooks|pack-context|analyze-logs|ingest-usage|events|preset|tools|all|advanced-unattended> [--target DIR] [dry-run|--dry-run|--no-write|--json]");
     break;
 }

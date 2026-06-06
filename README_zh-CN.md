@@ -24,6 +24,7 @@
 ```bash
 npm install
 node bin/cts.js scaffold --target .tmp/demo-review
+node bin/cts.js doctor --target .tmp/demo-review --no-write
 node bin/cts.js verify --target .tmp/demo-review
 ```
 
@@ -63,6 +64,7 @@ node bin/cts.js verify --target .tmp/demo-review
 仓库自身验证：
 
 ```bash
+npm run check:native
 npm test
 npm pack --dry-run
 ```
@@ -70,6 +72,8 @@ npm pack --dry-run
 目标仓库验证：
 
 ```bash
+node bin/cts.js doctor --target /path/to/your-repo --json --no-write
+node bin/cts.js audit-hooks --target /path/to/your-repo --json --no-write
 node bin/cts.js verify --target /path/to/your-repo
 ```
 
@@ -92,7 +96,16 @@ node bin/cts.js collect-metrics .token-stack/reports
 node bin/cts.js compare-metrics .token-stack/reports
 ```
 
-真实节省需要在代表性任务上做 baseline/post 对比。不要把 demo 输出写成真实 savings claim。
+benchmark 可以读取 `.token-stack/benchmark.config.json`。真实节省需要在代表性任务上做 baseline/post 对比。不要把 demo 输出写成真实 savings claim。
+
+本地上下文包、日志和 usage 证据：
+
+```bash
+node bin/cts.js pack-context --target . --budget 60000
+node bin/cts.js analyze-logs --target .
+node bin/cts.js ingest-usage --target .
+node bin/cts.js events record --target . --type rollout --message "warn-mode smoke complete"
+```
 
 ## 回滚
 
@@ -118,6 +131,9 @@ PowerShell 推荐执行：
 
 ```powershell
 node .\bin\cts.js scaffold --target .
+node .\bin\cts.js doctor --target . --no-write
+node .\bin\cts.js audit-hooks --target . --no-write
+node .\bin\cts.js pack-context --target . --json --no-write
 node .\bin\cts.js collect-metrics .token-stack\reports
 node .\bin\cts.js compare-metrics .token-stack\reports
 ```

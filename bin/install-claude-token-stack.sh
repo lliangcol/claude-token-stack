@@ -86,14 +86,13 @@ run_optional() {
 
 npm_spec_is_pinned() {
   local spec="$1"
-  local tail="${spec##*/}"
-  [[ "$tail" == *@* ]]
+  [[ "$spec" =~ ^(@[^/[:space:]]+/)?[^/@[:space:]]+@[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$ ]]
 }
 
 run_optional_npm_global() {
   local component="$1" spec="$2"
   if ! npm_spec_is_pinned "$spec" && [[ "$ALLOW_UNPINNED_REMOTE" != "1" ]]; then
-    record "$component" "skipped" "remote npm install requires pinned spec such as ${spec}@<version>, or TOKEN_STACK_ALLOW_UNPINNED_REMOTE_INSTALL=1"
+    record "$component" "skipped" "remote npm install requires exact semver spec such as package@1.2.3, or TOKEN_STACK_ALLOW_UNPINNED_REMOTE_INSTALL=1"
     return 0
   fi
   run_optional "$component" npm install -g "$spec"
@@ -102,7 +101,7 @@ run_optional_npm_global() {
 run_optional_npx_mcp() {
   local component="$1" server_name="$2" spec="$3"
   if ! npm_spec_is_pinned "$spec" && [[ "$ALLOW_UNPINNED_REMOTE" != "1" ]]; then
-    record "$component" "skipped" "remote npx MCP add requires pinned spec such as ${spec}@<version>, or TOKEN_STACK_ALLOW_UNPINNED_REMOTE_INSTALL=1"
+    record "$component" "skipped" "remote npx MCP add requires exact semver spec such as package@1.2.3, or TOKEN_STACK_ALLOW_UNPINNED_REMOTE_INSTALL=1"
     return 0
   fi
   run_optional "$component" claude mcp add "$server_name" -- npx -y "$spec"
@@ -151,7 +150,7 @@ Environment:
   TOKEN_STACK_ALLOW_REMOTE_INSTALL=1  Enable remote downloads or package installs.
   TOKEN_STACK_ALLOW_UNPINNED_REMOTE_INSTALL=1
                                       Allow remote npm/npx installs without @version pins.
-  *_NPM_SPEC=package@version          Pin optional npm package specs.
+  *_NPM_SPEC=package@1.2.3            Pin optional npm package specs with exact semver.
   ENABLE_HEADROOM=1                   Enable optional Headroom install/detection.
 
 Platform notes:

@@ -75,6 +75,26 @@ assertStatus(
 );
 
 assertStatus(
+  "block ls -R",
+  runHook(
+    bashGuard,
+    { tool_name: "Bash", tool_input: { command: "ls -R" } },
+    { TOKEN_GUARD_MODE: "block" }
+  ),
+  2
+);
+
+assertStatus(
+  "block grep -R",
+  runHook(
+    bashGuard,
+    { tool_name: "Bash", tool_input: { command: "grep -R TODO ." } },
+    { TOKEN_GUARD_MODE: "block" }
+  ),
+  2
+);
+
+assertStatus(
   "block mode test command advisory stays non-blocking",
   runHook(
     bashGuard,
@@ -88,6 +108,8 @@ const tokenLog = path.join(projectDir, ".claude", "logs", "token-guard.log");
 assert.ok(fs.existsSync(tokenLog), "token guard log should be generated");
 assert.match(fs.readFileSync(tokenLog, "utf8"), /tree/);
 assert.match(fs.readFileSync(tokenLog, "utf8"), /\.env/);
+assert.match(fs.readFileSync(tokenLog, "utf8"), /ls -R/);
+assert.match(fs.readFileSync(tokenLog, "utf8"), /grep -R/);
 assert.match(fs.readFileSync(tokenLog, "utf8"), /advisories/);
 
 assertStatus(
@@ -147,12 +169,14 @@ const templateSettings = JSON.parse(
 );
 const bashSettingsCommand = templateSettings.hooks.PreToolUse.find((entry) => entry.matcher === "Bash").hooks[0].command;
 assert.ok(!bashSettingsCommand.includes("$CLAUDE_PROJECT_DIR/"), "settings command should not require shell env expansion");
+assert.ok(!bashSettingsCommand.includes("node -e"), "settings command should avoid inline node -e shell payloads");
 
 const ps = findPowerShell();
 if (ps) {
   assertStatus(
     "PowerShell settings command",
     spawnSync(ps, ["-NoProfile", "-Command", bashSettingsCommand], {
+      cwd: projectDir,
       input: JSON.stringify(bashTreePayload),
       encoding: "utf8",
       env: {

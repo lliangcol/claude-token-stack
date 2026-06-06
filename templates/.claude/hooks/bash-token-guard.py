@@ -33,8 +33,8 @@ if tool_name != "Bash" or not cmd:
 blocking_rules = [
     (r"(^|[;&|]\s*)(cat|less|more|head|tail|sed|awk|grep)\b[^;&|]*(\.env(\.|$)|\.pem\b|\.key\b|id_rsa|secret|private_key)", "Avoid reading secret-like files through shell commands. Use synthetic fixtures or redact data first."),
     (r"(^|[;&|]\s*)tree(\s|$)", "Avoid raw tree. Use targeted rg --files with a narrow path."),
-    (r"(^|[;&|]\s*)ls\s+[^;&|]*\b-R\b", "Avoid ls -R. Use targeted rg --files with a narrow path."),
-    (r"(^|[;&|]\s*)grep\s+[^;&|]*\b-R\b", "Avoid grep -R. Use Codebase Memory MCP first, then targeted rg."),
+    (r"(^|[;&|]\s*)ls\b[^;&|]*(^|\s)-R(\s|$)", "Avoid ls -R. Use targeted rg --files with a narrow path."),
+    (r"(^|[;&|]\s*)grep\b[^;&|]*(^|\s)-R(\s|$)", "Avoid grep -R. Use Codebase Memory MCP first, then targeted rg."),
     (r"(^|[;&|]\s*)find\s+\.\s+-type\s+f(\s|$)", "Avoid unbounded find. Use Codebase Memory MCP or targeted rg --files."),
     (r"(^|[;&|]\s*)cat\s+.+\.(ts|tsx|js|jsx|py|go|rs|java|kt|rb|php|cs|cpp|c|h|hpp|swift|scala|sql)(\s|$)", "Avoid direct cat on source files. Use Codebase Memory MCP first, then Read only needed sections."),
     (r"(^|[;&|]\s*)docker\s+logs\b(?![^;&|]*(--tail|-n)\b)", "Avoid unbounded docker logs. Add --tail/-n or route through context-mode."),

@@ -7,7 +7,9 @@ cd "$REPO_ROOT"
 AI_ENABLED=0
 SYNTHETIC_ONLY=0
 DRY_RUN=0
+NO_WRITE=0
 EXPLICIT_PHASES=()
+BENCHMARK_CONFIG="${BENCHMARK_CONFIG:-.token-stack/benchmark.config.json}"
 
 permission_mode_lc="${PERMISSION_MODE:-auto}"
 permission_mode_lc="$(printf '%s\n' "$permission_mode_lc" | tr '[:upper:]' '[:lower:]')"
@@ -23,7 +25,8 @@ for arg in "$@"; do
     baseline|post) EXPLICIT_PHASES+=("$arg") ;;
     synthetic-only) SYNTHETIC_ONLY=1 ;;
     ai-enabled) AI_ENABLED=1 ;;
-    dry-run|--dry-run) DRY_RUN=1 ;;
+    dry-run|--dry-run) DRY_RUN=1; NO_WRITE=1 ;;
+    --no-write) NO_WRITE=1 ;;
     scaffold|tools|all) ;;
     *) echo "Unknown benchmark argument: $arg" >&2; exit 2 ;;
   esac
@@ -37,8 +40,16 @@ else
   PHASES=(post)
 fi
 
-REPORT_ROOT=".token-stack/reports"
-FIXTURE_DIR=".token-stack/fixtures"
+TEMP_ROOT=""
+if [[ "$NO_WRITE" == "1" ]]; then
+  TEMP_ROOT="$(mktemp -d 2>/dev/null || mktemp -d -t cts-benchmark)"
+  trap '[[ -n "${TEMP_ROOT:-}" ]] && rm -rf "$TEMP_ROOT"' EXIT
+  REPORT_ROOT="$TEMP_ROOT/reports"
+  FIXTURE_DIR="$TEMP_ROOT/fixtures"
+else
+  REPORT_ROOT=".token-stack/reports"
+  FIXTURE_DIR=".token-stack/fixtures"
+fi
 mkdir -p "$REPORT_ROOT" "$FIXTURE_DIR"
 
 python_cmd() {
@@ -50,6 +61,65 @@ python_cmd() {
     echo "python3/python not found" >&2
     return 127
   fi
+}
+
+load_tasks() {
+  local py
+  py="$(python_cmd)"
+  "$py" - "$BENCHMARK_CONFIG" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+config_path = Path(sys.argv[1])
+default_tasks = [
+    {"id": "code-discovery", "prompt": "Find the main code entry points in this repository. Do not modify files. Prefer code graph discovery if available, then read only necessary files."},
+    {"id": "test-failure", "prompt": "Run the smallest safe test or lint command available in this repo. Do not modify business code. Summarize top failure, file, line, root cause, and focused rerun command."},
+    {"id": "long-log", "prompt": "Analyze .token-stack/fixtures/synthetic-long-log.txt. Return root cause, first failing component, reproduction clue, and minimal next action. Do not paste the full log."},
+]
+tasks = default_tasks
+if config_path.exists():
+    data = json.loads(config_path.read_text(encoding="utf-8"))
+    configured = data.get("tasks") if isinstance(data, dict) else None
+    if isinstance(configured, list) and configured:
+        tasks = configured
+for item in tasks:
+    if isinstance(item, str):
+        task_id = item
+    elif isinstance(item, dict):
+        task_id = item.get("id") or item.get("task")
+    else:
+        task_id = None
+    if task_id:
+        print(task_id)
+PY
+}
+
+task_prompt() {
+  local task="$1"
+  local py
+  py="$(python_cmd)"
+  "$py" - "$BENCHMARK_CONFIG" "$task" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+config_path = Path(sys.argv[1])
+task = sys.argv[2]
+defaults = {
+    "code-discovery": "Find the main code entry points in this repository. Do not modify files. Prefer code graph discovery if available, then read only necessary files.",
+    "test-failure": "Run the smallest safe test or lint command available in this repo. Do not modify business code. Summarize top failure, file, line, root cause, and focused rerun command.",
+    "long-log": "Analyze .token-stack/fixtures/synthetic-long-log.txt. Return root cause, first failing component, reproduction clue, and minimal next action. Do not paste the full log.",
+}
+prompt = defaults.get(task, f"Run benchmark task {task}. Do not modify files. Return concise evidence, risk, and next action.")
+if config_path.exists():
+    data = json.loads(config_path.read_text(encoding="utf-8"))
+    for item in data.get("tasks", []):
+        if isinstance(item, dict) and (item.get("id") or item.get("task")) == task:
+            prompt = item.get("prompt") or prompt
+            break
+print(prompt)
+PY
 }
 
 cat > "$FIXTURE_DIR/synthetic-long-log.txt" <<'EOF_LOG'
@@ -67,7 +137,13 @@ for i in $(seq 1 500); do
   echo "[INFO] repeated heartbeat $i" >> "$FIXTURE_DIR/synthetic-long-log.txt"
 done
 
-TASKS=(code-discovery test-failure long-log)
+TASKS=()
+while IFS= read -r task_id; do
+  [[ -n "$task_id" ]] && TASKS+=("$task_id")
+done < <(load_tasks)
+if [[ ${#TASKS[@]} -eq 0 ]]; then
+  TASKS=(code-discovery test-failure long-log)
+fi
 
 synthetic_json() {
   local phase="$1"
@@ -116,6 +192,17 @@ base = {
         "cost_usd": 0.044,
     },
 }
+generic = {
+    "input_tokens": 2600,
+    "cache_creation_input_tokens": 650,
+    "cache_read_input_tokens": 70,
+    "output_tokens": 650,
+    "tool_calls": 6,
+    "raw_large_output_events": 1,
+    "blocked_commands": 0,
+    "wall_time_seconds": 35.0,
+    "cost_usd": 0.027,
+}
 post_scale = {
     "input_tokens": 0.58,
     "cache_creation_input_tokens": 0.70,
@@ -127,7 +214,7 @@ post_scale = {
     "wall_time_seconds": 0.86,
     "cost_usd": 0.60,
 }
-metrics = dict(base[task])
+metrics = dict(base.get(task, generic))
 if phase == "post":
     for key, scale in post_scale.items():
         if key == "blocked_commands":
@@ -142,6 +229,7 @@ metrics["total_cost_usd"] = metrics["cost_usd"]
 record = {
     "schema_version": 1,
     "mode": "synthetic-only",
+    "evidence_type": "synthetic",
     "phase": phase,
     "task": task,
     "task_success": True,
@@ -209,11 +297,7 @@ for phase in "${PHASES[@]}"; do
         synthetic_json "$phase" "$task" "$report_dir/$task.json"
         continue
       fi
-      case "$task" in
-        code-discovery) prompt="Find the main code entry points in this repository. Do not modify files. Prefer code graph discovery if available, then read only necessary files." ;;
-        test-failure) prompt="Run the smallest safe test or lint command available in this repo. Do not modify business code. Summarize top failure, file, line, root cause, and focused rerun command." ;;
-        long-log) prompt="Analyze .token-stack/fixtures/synthetic-long-log.txt. Return root cause, first failing component, reproduction clue, and minimal next action. Do not paste the full log." ;;
-      esac
+      prompt="$(task_prompt "$task")"
       run_ai_task "$phase" "$task" "$prompt"
       echo "- $task: ai-enabled result written to $report_dir/$task.json" >> "$benchmark_md"
     else

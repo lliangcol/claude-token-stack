@@ -38,8 +38,8 @@ Full install means scaffold plus optional tool detection/install:
 
 ```bash
 TOKEN_STACK_ALLOW_REMOTE_INSTALL=1 \
-CONTEXT_MODE_NPM_SPEC=context-mode@REVIEWED_VERSION \
-CODEBASE_MEMORY_MCP_NPM_SPEC=codebase-memory-mcp@REVIEWED_VERSION \
+CONTEXT_MODE_NPM_SPEC=context-mode@1.2.3 \
+CODEBASE_MEMORY_MCP_NPM_SPEC=codebase-memory-mcp@1.2.3 \
 node bin/cts.js all --target /path/to/repo
 ```
 
@@ -47,8 +47,8 @@ or from Bash:
 
 ```bash
 TOKEN_STACK_ALLOW_REMOTE_INSTALL=1 \
-CONTEXT_MODE_NPM_SPEC=context-mode@REVIEWED_VERSION \
-CODEBASE_MEMORY_MCP_NPM_SPEC=codebase-memory-mcp@REVIEWED_VERSION \
+CONTEXT_MODE_NPM_SPEC=context-mode@1.2.3 \
+CODEBASE_MEMORY_MCP_NPM_SPEC=codebase-memory-mcp@1.2.3 \
 bash bin/install-claude-token-stack.sh all
 ```
 
@@ -81,7 +81,7 @@ TOKEN_STACK_ALLOW_REMOTE_INSTALL=0
 
 This mode prevents remote package installs and remote installer execution. It is the default and should be used in locked-down repositories. Tool installation commands become detection or guidance steps.
 
-When `TOKEN_STACK_ALLOW_REMOTE_INSTALL=1` is enabled, package-manager installs remain opt-in and require pinned npm specs by default. Set `TOKEN_STACK_ALLOW_UNPINNED_REMOTE_INSTALL=1` only after accepting that supply-chain risk. Unpinned remote shell installers are still not executed by this project; they are downloaded, hashed for audit when possible, reported, and discarded.
+When `TOKEN_STACK_ALLOW_REMOTE_INSTALL=1` is enabled, package-manager installs remain opt-in and require exact semver npm specs by default, for example `package@1.2.3` or `@scope/package@1.2.3`. `package@latest` is not pinned. Set `TOKEN_STACK_ALLOW_UNPINNED_REMOTE_INSTALL=1` only after accepting that supply-chain risk. Unpinned remote shell installers are still not executed by this project; they are downloaded, hashed for audit when possible, reported, and discarded.
 
 ## Windows Path Space Fix
 

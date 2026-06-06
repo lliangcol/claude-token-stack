@@ -6,7 +6,7 @@ governance only; it does not make MCP setup a required project scope.
 
 ## Local Dependency Template
 
-Review `.mcp.local.example.json`, pin each `@REVIEWED_VERSION`, then copy it to
+Review `.mcp.local.example.json`, pin each package to an exact semver version such as `@1.2.3`, then copy it to
 the MCP config path your Claude Code workflow uses only if local MCP governance
 is in scope.
 

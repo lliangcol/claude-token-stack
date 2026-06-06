@@ -6,12 +6,27 @@ import sys
 from pathlib import Path
 from typing import Any
 
-args = [arg for arg in sys.argv[1:] if arg not in {"scaffold", "tools", "all"}]
-dry_run = any(arg in {"dry-run", "--dry-run"} for arg in args)
-args = [arg for arg in args if arg not in {"dry-run", "--dry-run"}]
+raw_args = [arg for arg in sys.argv[1:] if arg not in {"scaffold", "tools", "all"}]
+dry_run = any(arg in {"dry-run", "--dry-run", "--no-write"} for arg in raw_args)
+args: list[str] = []
+config_path: Path | None = None
+i = 0
+while i < len(raw_args):
+    arg = raw_args[i]
+    if arg in {"dry-run", "--dry-run", "--no-write"}:
+        i += 1
+        continue
+    if arg == "--config" and i + 1 < len(raw_args):
+        config_path = Path(raw_args[i + 1])
+        i += 2
+        continue
+    args.append(arg)
+    i += 1
 root = Path(args[0]) if args else Path(".token-stack/reports")
+if config_path is None:
+    config_path = root.parent / "benchmark.config.json"
 
-TASKS = ["code-discovery", "test-failure", "long-log"]
+DEFAULT_TASKS = ["code-discovery", "test-failure", "long-log"]
 METRICS = [
     "input_tokens",
     "cache_creation_input_tokens",
@@ -95,6 +110,34 @@ def cache_hit_rate(metrics: dict[str, Any]) -> float | None:
     return None if total <= 0 else read / total
 
 
+def configured_tasks() -> list[str]:
+    tasks: list[str] = []
+    if config_path and config_path.exists():
+        try:
+            data = json.loads(config_path.read_text(encoding="utf-8"))
+            configured = data.get("tasks") if isinstance(data, dict) else None
+            if isinstance(configured, list):
+                for item in configured:
+                    if isinstance(item, str):
+                        tasks.append(item)
+                    elif isinstance(item, dict):
+                        task = item.get("id") or item.get("task")
+                        if isinstance(task, str):
+                            tasks.append(task)
+        except Exception:
+            pass
+    if not tasks:
+        tasks.extend(DEFAULT_TASKS)
+    for phase in ("baseline", "post"):
+        phase_dir = root / phase
+        if phase_dir.exists():
+            for path in sorted(phase_dir.glob("*.json")):
+                if path.stem not in tasks and path.name not in {"metrics-summary.json", "metrics-collected.json"}:
+                    tasks.append(path.stem)
+    return tasks
+
+
+TASKS = configured_tasks()
 tasks: dict[str, Any] = {}
 totals = {"baseline": {}, "post": {}}
 evidence_modes: set[str] = set()
@@ -143,6 +186,7 @@ recommend_enter_block = bool(success_ok and raw_not_worse and cost_not_worse and
 summary = {
     "schema_version": 1,
     "root": str(root),
+    "config": str(config_path) if config_path else None,
     "tasks": tasks,
     "totals": {
         "baseline": totals["baseline"],

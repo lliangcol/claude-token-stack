@@ -9,6 +9,12 @@ from pathlib import Path
 MODE = os.environ.get("CBM_GATE_MODE", "warn").lower()
 if MODE not in {"warn", "block", "off"}:
     MODE = "warn"
+BLOCK_TOOLS = {
+    item.strip()
+    for item in os.environ.get("CBM_GATE_BLOCK_TOOLS", "Grep,Glob").split(",")
+    if item.strip()
+}
+BLOCK_TOOLS &= {"Read", "Grep", "Glob"}
 PROJECT_DIR = Path(os.environ.get("CLAUDE_PROJECT_DIR", os.getcwd()))
 LOG_DIR = PROJECT_DIR / ".claude" / "logs"
 LOG_DIR.mkdir(parents=True, exist_ok=True)
@@ -40,18 +46,11 @@ tool_input = payload.get("tool_input", {}) or {}
 if tool_name not in {"Read", "Grep", "Glob"}:
     sys.exit(0)
 
-text = json.dumps(tool_input, ensure_ascii=False)
 messages = []
 block_reasons = []
 
-if any(path in text for path in NOISY_PATHS):
-    messages.append("Avoid reading generated/vendor/build/lock paths. Narrow the target or use code discovery first.")
-
-if tool_name in {"Grep", "Glob"}:
-    messages.append("Code discovery gate: use Codebase Memory MCP first for symbols/callers/callees, then use targeted Grep/Glob only if needed.")
-
-if tool_name == "Read" and any(ext in text for ext in SOURCE_EXTENSIONS):
-    messages.append("Read source files only after discovery; prefer necessary sections over entire files.")
+PATH_KEYS = {"file_path", "path", "folder", "cwd", "glob", "include"}
+PATTERN_KEYS = {"pattern", "query"}
 
 def _get_string(*keys: str) -> str:
     for key in keys:
@@ -59,6 +58,39 @@ def _get_string(*keys: str) -> str:
         if isinstance(value, str):
             return value
     return ""
+
+def _field_strings(keys: set[str]) -> list[str]:
+    values = []
+    for key in keys:
+        value = tool_input.get(key)
+        if isinstance(value, str):
+            values.append(value)
+    return values
+
+def _normalize_path(value: str) -> str:
+    return value.replace("\\", "/").lower()
+
+def _is_source_path(value: str) -> bool:
+    normalized = _normalize_path(value).split("?", 1)[0].split("#", 1)[0]
+    return normalized.endswith(SOURCE_EXTENSIONS)
+
+def _has_noisy_path(value: str) -> bool:
+    normalized = _normalize_path(value)
+    return any(path in normalized for path in NOISY_PATHS)
+
+path_values = _field_strings(PATH_KEYS)
+pattern_values = _field_strings(PATTERN_KEYS)
+
+if any(_has_noisy_path(value) for value in path_values):
+    messages.append("Avoid reading generated/vendor/build/lock paths. Narrow the target or use code discovery first.")
+    block_reasons.append("noisy generated/vendor/build path")
+
+if tool_name in {"Grep", "Glob"}:
+    messages.append("Code discovery gate: use Codebase Memory MCP first for symbols/callers/callees, then use targeted Grep/Glob only if needed.")
+
+if tool_name == "Read" and any(_is_source_path(value) for value in path_values):
+    messages.append("Read source files only after discovery; prefer necessary sections over entire files.")
+    block_reasons.append("source Read")
 
 if tool_name == "Grep":
     path = _get_string("path", "folder", "cwd")
@@ -88,7 +120,7 @@ with open(LOG_DIR / "cbm-gate.log", "a", encoding="utf-8") as f:
 
 message = "Codebase Memory gate triggered:\n" + "\n".join(f"- {m}" for m in messages)
 
-if MODE == "block" and tool_name in {"Grep", "Glob"} and block_reasons:
+if MODE == "block" and tool_name in BLOCK_TOOLS and block_reasons:
     print(message, file=sys.stderr)
     print("\nUse Codebase Memory MCP first, then retry with a narrower target.", file=sys.stderr)
     sys.exit(2)

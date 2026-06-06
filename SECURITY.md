@@ -34,7 +34,7 @@ TOKEN_STACK_ALLOW_REMOTE_INSTALL=1
 
 The project does not use `curl | sh`. Remote shell installers are not executed by this project. When remote installer mode is enabled for a shell-script installer, the script is downloaded to a temporary file, hashed when SHA tooling is available, reported for audit, and then discarded. Users who choose to run third-party installers must do so manually after reviewing and pinning them according to their own supply-chain policy.
 
-Package-manager installs, such as optional `npm install -g ...` integrations, remain opt-in under `TOKEN_STACK_ALLOW_REMOTE_INSTALL=1` and require pinned npm specs by default. Users can set `TOKEN_STACK_ALLOW_UNPINNED_REMOTE_INSTALL=1` to allow unpinned package resolution, but should treat that as a supply-chain risk and review optional tool sources before enabling it.
+Package-manager installs, such as optional `npm install -g ...` integrations, remain opt-in under `TOKEN_STACK_ALLOW_REMOTE_INSTALL=1` and require exact semver npm specs by default, for example `context-mode@1.2.3` or `@scope/package@1.2.3`. Tags and ranges such as `@latest`, `^1.2.3`, or `1.x` are treated as unpinned. Users can set `TOKEN_STACK_ALLOW_UNPINNED_REMOTE_INSTALL=1` to allow unpinned package resolution, but should treat that as a supply-chain risk and review optional tool sources before enabling it.
 
 Headroom is disabled by default and must be explicitly enabled with `ENABLE_HEADROOM=1`.
 

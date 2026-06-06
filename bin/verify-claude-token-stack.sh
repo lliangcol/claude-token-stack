@@ -6,15 +6,25 @@ cd "$REPO_ROOT"
 
 MODE="${1:-all}"
 DRY_RUN=0
+NO_WRITE=0
 for arg in "$@"; do
   case "$arg" in
     scaffold|tools|all) MODE="$arg" ;;
-    dry-run|--dry-run) DRY_RUN=1 ;;
+    dry-run|--dry-run) DRY_RUN=1; NO_WRITE=1 ;;
+    --no-write) NO_WRITE=1 ;;
   esac
 done
 
-REPORT_DIR=".token-stack/reports"
-LOG_DIR=".token-stack/logs"
+TEMP_ROOT=""
+if [[ "$NO_WRITE" == "1" ]]; then
+  TEMP_ROOT="$(mktemp -d 2>/dev/null || mktemp -d -t cts-verify)"
+  trap '[[ -n "${TEMP_ROOT:-}" ]] && rm -rf "$TEMP_ROOT"' EXIT
+  REPORT_DIR="$TEMP_ROOT/reports"
+  LOG_DIR="$TEMP_ROOT/logs"
+else
+  REPORT_DIR=".token-stack/reports"
+  LOG_DIR=".token-stack/logs"
+fi
 REPORT="$REPORT_DIR/verify-report.md"
 JSON_REPORT="$REPORT_DIR/verify-report.json"
 RESULTS_JSONL="$REPORT_DIR/verify-results.jsonl"
@@ -22,7 +32,10 @@ pass=0
 fail=0
 warn=0
 
-mkdir -p "$REPORT_DIR" "$LOG_DIR" .claude/logs
+mkdir -p "$REPORT_DIR" "$LOG_DIR"
+if [[ "$NO_WRITE" != "1" ]]; then
+  mkdir -p .claude/logs
+fi
 : > "$REPORT"
 : > "$RESULTS_JSONL"
 
@@ -94,6 +107,7 @@ run_hook() {
 echo "# Claude Token Stack Verification" >> "$REPORT"
 echo "Date: $(date -u +"%Y-%m-%dT%H:%M:%SZ")" >> "$REPORT"
 echo "Root: $REPO_ROOT" >> "$REPORT"
+echo "No-write: $([[ "$NO_WRITE" == "1" ]] && echo true || echo false)" >> "$REPORT"
 
 section "Files"
 for f in \
@@ -233,7 +247,7 @@ for hook in .claude/hooks/bash-token-guard.py .claude/hooks/cbm-gate.py; do
 done
 
 section "Hook smoke tests"
-if [[ "$DRY_RUN" == "1" ]]; then
+if [[ "$DRY_RUN" == "1" || "$NO_WRITE" == "1" ]]; then
   record WARN "hook smoke tests" "dry-run selected"
 else
   chmod +x .claude/hooks/*.py .claude/hooks/*.js 2>/dev/null || true

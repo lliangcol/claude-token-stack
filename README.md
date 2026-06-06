@@ -99,6 +99,7 @@ Try from a local checkout:
 ```bash
 npm install
 node bin/cts.js scaffold --target /path/to/your-repo
+node bin/cts.js doctor --target /path/to/your-repo --no-write
 node bin/cts.js verify --target /path/to/your-repo
 ```
 
@@ -106,6 +107,7 @@ After an npm release is available:
 
 ```bash
 npx claude-token-stack scaffold
+npx claude-token-stack doctor --no-write
 npx claude-token-stack verify
 ```
 
@@ -153,6 +155,7 @@ Defaults in `templates/.claude/settings.json` follow the same posture:
 {
   "TOKEN_GUARD_MODE": "warn",
   "CBM_GATE_MODE": "warn",
+  "CBM_GATE_BLOCK_TOOLS": "Grep,Glob",
   "ENABLE_HEADROOM": "0"
 }
 ```
@@ -173,8 +176,16 @@ A conservative path is to switch `TOKEN_GUARD_MODE=block` first, keep `CBM_GATE_
 Repository checks:
 
 ```bash
+npm run check:native
 npm test
 npm pack --dry-run
+```
+
+Native diagnostics and hook audit:
+
+```bash
+node bin/cts.js doctor --target . --json --no-write
+node bin/cts.js audit-hooks --target . --json --no-write
 ```
 
 Synthetic baseline/post workflow:
@@ -185,7 +196,17 @@ node bin/cts.js collect-metrics .token-stack/reports
 node bin/cts.js compare-metrics .token-stack/reports
 ```
 
-The benchmark workflow is for adoption decisions. It should not be turned into a public savings claim without representative baseline/post evidence.
+Context, log, usage, and local event helpers:
+
+```bash
+node bin/cts.js pack-context --target . --budget 60000
+node bin/cts.js analyze-logs --target .
+node bin/cts.js ingest-usage --target .
+node bin/cts.js events record --target . --type rollout --message "warn-mode smoke complete"
+node bin/cts.js preset --target . --name balanced --json --no-write
+```
+
+The benchmark workflow is for adoption decisions. It can read `.token-stack/benchmark.config.json`; see [docs/operations.md](docs/operations.md) and [docs/examples/benchmark.config.example.json](docs/examples/benchmark.config.example.json). It should not be turned into a public savings claim without representative baseline/post evidence.
 
 ## Cross-Platform Notes
 
@@ -197,10 +218,11 @@ bash bin/verify-claude-token-stack.sh
 bash bin/run-token-benchmark.sh synthetic-only
 ```
 
-Windows users should prefer the Node CLI from PowerShell for scaffold, collect-metrics, compare-metrics, and direct hook smoke tests:
+Windows users should prefer the Node CLI from PowerShell for scaffold, doctor, audit-hooks, pack-context, analyze-logs, ingest-usage, collect-metrics, compare-metrics, and direct hook smoke tests:
 
 ```powershell
 node .\bin\cts.js scaffold --target .
+node .\bin\cts.js doctor --target . --no-write
 powershell -ExecutionPolicy Bypass -File .\bin\fix-windows-claude-settings.ps1 -DryRun
 ```
 
@@ -323,12 +345,12 @@ The default setup is local-first. Remote optional tool installation is disabled 
 
 ```bash
 TOKEN_STACK_ALLOW_REMOTE_INSTALL=1 \
-CONTEXT_MODE_NPM_SPEC=context-mode@REVIEWED_VERSION \
-CODEBASE_MEMORY_MCP_NPM_SPEC=codebase-memory-mcp@REVIEWED_VERSION \
+CONTEXT_MODE_NPM_SPEC=context-mode@1.2.3 \
+CODEBASE_MEMORY_MCP_NPM_SPEC=codebase-memory-mcp@1.2.3 \
 npx claude-token-stack install-tools
 ```
 
-Remote npm/npx installs require pinned package specs by default. Set `TOKEN_STACK_ALLOW_UNPINNED_REMOTE_INSTALL=1` only in disposable or otherwise reviewed environments.
+Remote npm/npx installs require exact semver package specs by default. `package@latest` is not pinned. Set `TOKEN_STACK_ALLOW_UNPINNED_REMOTE_INSTALL=1` only in disposable or otherwise reviewed environments.
 
 This is not a full DLP system. Review generated policies, extend deny lists for project-specific secrets, and avoid including credentials, `.env` content, private keys, or production tokens in benchmark reports.
 
@@ -340,6 +362,7 @@ For details, see [SECURITY.md](SECURITY.md).
 - [Installation](docs/installation.md)
 - [Architecture](docs/architecture.md)
 - [Benchmark](docs/benchmark.md)
+- [Operations](docs/operations.md)
 - [Demo](docs/demo.md)
 - [Examples](examples/README.md)
 - [Case Studies](docs/case-studies/README.md)

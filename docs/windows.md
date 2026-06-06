@@ -12,7 +12,24 @@ powershell -ExecutionPolicy Bypass -File .\bin\fix-windows-claude-settings.ps1
 
 ## Python Hooks
 
-Project-level hooks must not execute `.py` files directly. The scaffolded settings use a shell-neutral Node command that reads `CLAUDE_PROJECT_DIR` from `process.env`, resolves `.claude/hooks/run-python-hook.js`, and passes the Python hook path as an argument.
+Project-level hooks must not execute `.py` files directly. The scaffolded settings use a short Node runner command:
+
+```powershell
+node .claude/hooks/run-python-hook.js .claude/hooks/bash-token-guard.py; exit $LASTEXITCODE
+```
+
+Run the command from the project root. `run-python-hook.js` finds `python`, `py`, or `python3` on Windows and forwards the original hook payload to the Python hook.
+
+Native PowerShell commands that do not require Bash:
+
+```powershell
+node .\bin\cts.js scaffold --target .
+node .\bin\cts.js doctor --target . --no-write
+node .\bin\cts.js audit-hooks --target . --no-write
+node .\bin\cts.js pack-context --target . --json --no-write
+node .\bin\cts.js collect-metrics .token-stack\reports
+node .\bin\cts.js compare-metrics .token-stack\reports
+```
 
 ## RTK
 

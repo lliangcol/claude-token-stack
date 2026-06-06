@@ -9,6 +9,15 @@ npx claude-token-stack collect-metrics .token-stack/reports
 npx claude-token-stack compare-metrics .token-stack/reports
 ```
 
+The runner reads `.token-stack/benchmark.config.json` or `BENCHMARK_CONFIG=/path/to/config.json`. Without a config file it uses the built-in `code-discovery`, `test-failure`, and `long-log` tasks.
+
+Example config:
+
+```bash
+cp docs/examples/benchmark.config.example.json .token-stack/benchmark.config.json
+npx claude-token-stack benchmark synthetic-only
+```
+
 ## Metrics
 
 - `input_tokens`
@@ -24,3 +33,5 @@ npx claude-token-stack compare-metrics .token-stack/reports
 ## Interpretation
 
 Do not judge only by total cost. Some post runs may cost more if the model produces a better diagnostic. The target is fewer wasteful context events without reducing task success.
+
+Synthetic-only evidence is not representative enough to recommend block mode. Use `evidence_type=real` or `mixed` case-study artifacts before changing team defaults.

@@ -62,12 +62,12 @@ Installer principles:
 
 - Scaffold works offline.
 - Remote installs are disabled unless `TOKEN_STACK_ALLOW_REMOTE_INSTALL=1`.
-- Remote npm/npx installs require pinned package specs by default, unless `TOKEN_STACK_ALLOW_UNPINNED_REMOTE_INSTALL=1` is explicitly set.
+- Remote npm/npx installs require exact semver package specs by default, unless `TOKEN_STACK_ALLOW_UNPINNED_REMOTE_INSTALL=1` is explicitly set.
 - Remote shell installer scripts are downloaded and hashed for audit only; the project does not execute unpinned shell installers and does not use `curl | sh`.
 - RTK auto-install is skipped on Windows/MINGW/MSYS/Cygwin.
 - Headroom is disabled unless `ENABLE_HEADROOM=1`.
 
-The Node CLI in `bin/cts.js` wraps Bash and Python entrypoints and handles Windows path conversion for common workflows.
+The Node CLI in `bin/cts.js` wraps Bash and Python entrypoints and handles Windows path conversion for common workflows. Native helper commands such as `doctor`, `audit-hooks`, `pack-context`, `analyze-logs`, `ingest-usage`, `events`, and `preset` run through Node and do not require Bash.
 
 ## Verification
 
@@ -97,6 +97,9 @@ Reports are written under `.token-stack/reports/`:
 - `baseline/*.json` and `post/*.json`: benchmark task outputs.
 - `metrics-collected.json`: aggregated raw metrics.
 - `metrics-summary.json`: baseline/post comparison and block recommendation.
+- `log-analysis.json`: hook log aggregation.
+- `usage-summary.json`: local token/cost usage aggregation.
+- `context/context-pack.md`: optional redacted context pack output.
 
 Runtime hook logs are written under `.claude/logs/`.
 

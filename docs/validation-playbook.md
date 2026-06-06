@@ -7,17 +7,20 @@ Use this playbook before tightening from `warn` to `block`.
 Run repository checks:
 
 ```bash
+npm run check:native
 npm run lint
 npm run test:hooks
 ```
 
-`npm run lint` validates Node syntax, Python compilation, Bash syntax, and required templates. `npm run test:hooks` runs smoke tests in `tests/smoke/hook-smoke.test.js`.
+`npm run check:native` validates the PowerShell-friendly path. `npm run lint` validates Node syntax, Python compilation, Bash syntax, and required templates. `npm run test:hooks` runs smoke tests in `tests/smoke/hook-smoke.test.js`.
 
 For a scaffolded target repo, run:
 
 ```bash
 node bin/cts.js verify --target .
 ```
+
+Use `node bin/cts.js verify --target . --no-write` when you need a dry diagnostic that does not create target repository artifacts.
 
 Expected hook smoke behavior:
 
@@ -73,6 +76,8 @@ node bin/cts.js compare-metrics .token-stack/reports
 
 Keep real runs budgeted with `BENCHMARK_MAX_TURNS` and `BENCHMARK_MAX_BUDGET_USD`.
 
+Custom task lists can be stored in `.token-stack/benchmark.config.json`; start from `docs/examples/benchmark.config.example.json`.
+
 ## Reading metrics-summary.json
 
 Open `.token-stack/reports/metrics-summary.json`.
@@ -89,7 +94,7 @@ Key fields:
 - `recommend_enter_block`: machine recommendation for moving to block.
 - `recommendation_reason`: booleans explaining the recommendation.
 
-`recommend_enter_block` is true only when post tasks pass, raw large output events are not worse, cost is not worse, and post data includes blocked command events.
+`recommend_enter_block` is true only when post tasks pass, raw large output events are not worse, cost is not worse, post data includes blocked command events, and the evidence is representative. Synthetic-only evidence keeps `recommend_enter_block` false.
 
 ## Deciding Whether To Enter Block
 
@@ -124,7 +129,7 @@ Move `CBM_GATE_MODE` to `block` later only if broad `Grep`/`Glob` warnings are c
 
 ## Local MCP Smoke
 
-Optional project-local MCP dependencies start from `.mcp.local.example.json`. Pin reviewed versions before use and do not auto-install remote tools during validation.
+Optional project-local MCP dependencies start from `.mcp.local.example.json`. Pin reviewed exact semver versions before use and do not auto-install remote tools during validation.
 
 Capture this evidence before treating MCP governance as reliable:
 
@@ -138,3 +143,9 @@ Capture this evidence before treating MCP governance as reliable:
 ## Context Pack Check
 
 Use `docs/context-pack-template.md` for handoffs that would otherwise become broad scans or long reports. A context pack is acceptable only if it has a narrow topic, top-k evidence, bounded snippets, risks, and a verification checklist.
+
+The native helper can generate a budgeted pack and manifest:
+
+```bash
+node bin/cts.js pack-context --target . --budget 60000
+```

@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "tasks": [
+    {
+      "id": "code-discovery",
+      "prompt": "Find the main code entry points in this repository. Do not modify files. Prefer code graph discovery if available, then read only necessary files.",
+      "evidence_type": "synthetic"
+    },
+    {
+      "id": "targeted-test",
+      "prompt": "Run the smallest safe validation command for the changed area. Summarize the command, status, first failure, and focused rerun command.",
+      "evidence_type": "real"
+    },
+    {
+      "id": "long-log",
+      "prompt": "Analyze .token-stack/fixtures/synthetic-long-log.txt. Return root cause, first failing component, reproduction clue, and minimal next action. Do not paste the full log.",
+      "evidence_type": "synthetic"
+    }
+  ]
+}

@@ -14,6 +14,8 @@ Every case study should include:
 - evidence files
 - limitation statement
 
+Use [template.md](template.md) for new reports and keep machine-readable summaries compatible with `schemas/case-study.schema.json`.
+
 ## Evidence rules
 
 - Synthetic/demo evidence proves wiring only.
@@ -24,3 +26,4 @@ Every case study should include:
 Current case studies:
 
 - [synthetic-demo.md](synthetic-demo.md)
+- [template.md](template.md)

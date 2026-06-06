@@ -14,9 +14,11 @@ Unquoted hook paths can break Claude settings. Always pass paths as quoted argum
 
 ```powershell
 node .\bin\cts.js scaffold --target "<repo-root>"
+node .\bin\cts.js doctor --target "<repo-root>" --no-write
+node .\bin\cts.js audit-hooks --target "<repo-root>" --no-write
 ```
 
-The Node CLI runs `verify`, `benchmark`, `install-tools`, and `all` through Bash scripts. From PowerShell, install Git Bash or use WSL2 for those commands. `scaffold`, `collect-metrics`, and `compare-metrics` do not require Bash.
+The Node CLI runs `verify`, `benchmark`, `install-tools`, and `all` through Bash scripts. From PowerShell, install Git Bash or use WSL2 for those commands. `scaffold`, `doctor`, `audit-hooks`, `pack-context`, `analyze-logs`, `ingest-usage`, `events`, `preset`, `collect-metrics`, and `compare-metrics` do not require Bash.
 
 ## PowerShell Is Not Bash
 
@@ -52,6 +54,7 @@ Use WSL2 or manual RTK installation when RTK is required. The rest of the stack 
 - Preserves the hook exit code so warn/block behavior works.
 
 This runner is why project hooks can be configured as Node commands even when the underlying policy logic is Python.
+The scaffolded command appends `; exit $LASTEXITCODE` so PowerShell preserves hook exit code `2`; Bash treats the empty variable as an `exit` that reuses the previous command status.
 
 ## fix-windows-claude-settings.ps1
 

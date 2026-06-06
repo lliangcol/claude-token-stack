@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/lliangcol/claude-token-stack/schemas/metrics.schema.json",
+  "title": "Claude Token Stack Metric Record",
+  "type": "object",
+  "required": ["schema_version", "phase", "task", "metrics"],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1
+    },
+    "mode": {
+      "type": "string",
+      "description": "Evidence mode, for example synthetic-only or ai-enabled."
+    },
+    "evidence_type": {
+      "type": "string",
+      "enum": ["synthetic", "real", "mixed"]
+    },
+    "phase": {
+      "type": "string",
+      "enum": ["baseline", "post"]
+    },
+    "task": {
+      "type": "string",
+      "minLength": 1
+    },
+    "task_success": {
+      "type": "boolean"
+    },
+    "metrics": {
+      "type": "object",
+      "properties": {
+        "input_tokens": { "type": "number" },
+        "cache_creation_input_tokens": { "type": "number" },
+        "cache_read_input_tokens": { "type": "number" },
+        "output_tokens": { "type": "number" },
+        "tool_calls": { "type": "number" },
+        "raw_large_output_events": { "type": "number" },
+        "blocked_commands": { "type": "number" },
+        "wall_time_seconds": { "type": "number" },
+        "cost_usd": { "type": "number" },
+        "total_cost_usd": { "type": "number" }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

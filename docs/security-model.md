@@ -58,10 +58,10 @@ TOKEN_STACK_ALLOW_REMOTE_INSTALL=0
 
 ## Remote Installer Safety Strategy
 
-Remote installer mode is for users who accept the dependency risk. Remote npm/npx installs require pinned package specs by default, for example `CONTEXT_MODE_NPM_SPEC=context-mode@REVIEWED_VERSION`. Set `TOKEN_STACK_ALLOW_UNPINNED_REMOTE_INSTALL=1` only after accepting unpinned package resolution risk. Before enabling remote installs:
+Remote installer mode is for users who accept the dependency risk. Remote npm/npx installs require exact semver package specs by default, for example `CONTEXT_MODE_NPM_SPEC=context-mode@1.2.3`. `context-mode@latest` is not pinned. Set `TOKEN_STACK_ALLOW_UNPINNED_REMOTE_INSTALL=1` only after accepting unpinned package resolution risk. Before enabling remote installs:
 
 1. Review the installer script and optional tool sources.
-2. Prefer pinned package versions where your organization requires them.
+2. Prefer exact package versions where your organization requires them.
 3. Run in a disposable environment first.
 4. Keep `.token-stack/reports/install-report.json`.
 5. Confirm rollback commands for every optional tool.

@@ -18,11 +18,18 @@ function findPowerShell() {
   return null;
 }
 
+function findBash() {
+  const result = spawnSync("bash", ["--version"], { encoding: "utf8" });
+  return result.status === 0 ? "bash" : null;
+}
+
+const bash = findBash();
 const shellScript = fs.readFileSync(path.join(repoRoot, "bin", "install-claude-token-stack.sh"), "utf8");
 assert.ok(!/sh\s+"\$tmp"/.test(shellScript), "remote shell installer must not execute downloaded temp scripts");
 assert.match(shellScript, /downloaded for audit only/, "remote shell installer should report audit-only behavior");
 assert.match(shellScript, /TOKEN_STACK_ALLOW_UNPINNED_REMOTE_INSTALL/, "remote npm installs should expose an explicit unpinned opt-in");
 assert.match(shellScript, /run_optional_npm_global/, "remote npm installs should route through the pinning guard");
+assert.ok(shellScript.includes("[0-9]+\\.[0-9]+\\.[0-9]+"), "remote npm pinning should require exact semver, not package@latest");
 assert.match(shellScript, /backup_file "\$dst"/, "shell scaffold should backup existing template destinations before overwrite");
 assert.match(shellScript, /configure_codebase_memory_mcp/, "remote codebase-memory-mcp install should run MCP setup when command becomes available");
 assert.match(shellScript, /mcp-local-smoke\.md/, "shell scaffold should include local MCP smoke docs");
@@ -51,6 +58,10 @@ assert.ok(
 assert.ok(packageJson.files.includes("README_zh-CN.md"), "package should include Chinese README");
 assert.ok(packageJson.files.includes("examples/README.md"), "package should include examples index");
 assert.ok(packageJson.files.includes("docs/case-studies/synthetic-demo.md"), "package should include npm-user case study docs");
+assert.ok(packageJson.files.includes("docs/case-studies/template.md"), "package should include case study template");
+assert.ok(packageJson.files.includes("docs/operations.md"), "package should include operations playbook");
+assert.ok(packageJson.files.includes("docs/examples/benchmark.config.example.json"), "package should include benchmark config example");
+assert.ok(packageJson.files.includes("schemas/*.json"), "package should include JSON schemas");
 assert.ok(
   packageJson.files.includes("examples/demo-windows-path-space/scripts/quote-paths.ps1"),
   "package should include static demo files"
@@ -59,7 +70,10 @@ assert.ok(
 const unattendedRunner = fs.readFileSync(path.join(repoRoot, "bin", "cts-run-agent-unattended.sh"), "utf8");
 const benchmarkRunner = fs.readFileSync(path.join(repoRoot, "bin", "run-token-benchmark.sh"), "utf8");
 assert.match(unattendedRunner, /Refusing unsafe PERMISSION_MODE/, "advanced runner should reject unsafe permission modes");
+assert.ok(!/verify-claude-token-stack\.sh"\s*\|\|\s*true/.test(unattendedRunner), "advanced runner must not swallow final verify failures by default");
+assert.match(unattendedRunner, /BEST_EFFORT/, "advanced runner should expose explicit best-effort opt-in");
 assert.match(benchmarkRunner, /Refusing unsafe PERMISSION_MODE/, "benchmark runner should reject unsafe permission modes");
+assert.match(benchmarkRunner, /BENCHMARK_CONFIG/, "benchmark runner should support configurable tasks");
 
 const publicResearchPlan = fs.readFileSync(path.join(repoRoot, "docs", "research", "execution-plan-v2.md"), "utf8");
 const publicResearchReport = fs.readFileSync(path.join(repoRoot, "docs", "research", "research-report.md"), "utf8");
@@ -75,6 +89,28 @@ if (fs.existsSync(projectRunnerPath)) {
     templateRunner,
     "repo-local runner should match the published template runner"
   );
+}
+
+for (const [commandName, extraArgs] of [
+  ["doctor", ["--json", "--no-write"]],
+  ["audit-hooks", ["--json", "--no-write"]],
+  ["pack-context", ["--budget", "2000", "--json", "--no-write"]],
+  ["analyze-logs", ["--json", "--no-write"]],
+  ["ingest-usage", ["--json", "--no-write"]],
+  ["events", ["--json", "--no-write"]],
+  ["preset", ["--name", "balanced", "--json", "--no-write"]],
+]) {
+  const result = spawnSync(
+    process.execPath,
+    [path.join(repoRoot, "bin", "cts.js"), commandName, "--target", repoRoot, ...extraArgs],
+    { encoding: "utf8" }
+  );
+  assert.strictEqual(
+    result.status,
+    0,
+    `${commandName} native command failed\nstdout:\n${result.stdout}\nstderr:\n${result.stderr}`
+  );
+  JSON.parse(result.stdout);
 }
 
 const scaffoldTarget = path.join(tempRoot, "invalid settings target");
@@ -176,44 +212,48 @@ assert.deepStrictEqual(
   "scaffold should not add duplicate token hooks when target already has them"
 );
 
-const shellInstallerExistingHookTarget = path.join(repoRoot, ".tmp", `helper-shell-existing-hook-${Date.now()}`);
-fs.mkdirSync(path.join(shellInstallerExistingHookTarget, ".claude"), { recursive: true });
-fs.writeFileSync(
-  path.join(shellInstallerExistingHookTarget, ".claude", "settings.json"),
-  JSON.stringify(
-    {
-      hooks: {
-        PreToolUse: [
-          {
-            matcher: "Bash",
-            hooks: [{ type: "command", command: "python .claude/hooks/bash-token-guard.py --custom" }],
-          },
-        ],
+if (bash) {
+  const shellInstallerExistingHookTarget = path.join(repoRoot, ".tmp", `helper-shell-existing-hook-${Date.now()}`);
+  fs.mkdirSync(path.join(shellInstallerExistingHookTarget, ".claude"), { recursive: true });
+  fs.writeFileSync(
+    path.join(shellInstallerExistingHookTarget, ".claude", "settings.json"),
+    JSON.stringify(
+      {
+        hooks: {
+          PreToolUse: [
+            {
+              matcher: "Bash",
+              hooks: [{ type: "command", command: "python .claude/hooks/bash-token-guard.py --custom" }],
+            },
+          ],
+        },
       },
-    },
-    null,
-    2
-  ),
-  "utf8"
-);
-const shellInstallerExistingHookResult = spawnSync(
-  process.execPath,
-  [path.join(repoRoot, "bin", "cts.js"), "all", "--target", shellInstallerExistingHookTarget],
-  { encoding: "utf8" }
-);
-assert.strictEqual(
-  shellInstallerExistingHookResult.status,
-  0,
-  `shell installer existing hook path failed\nstdout:\n${shellInstallerExistingHookResult.stdout}\nstderr:\n${shellInstallerExistingHookResult.stderr}`
-);
-const shellInstallerExistingHookSettings = JSON.parse(
-  fs.readFileSync(path.join(shellInstallerExistingHookTarget, ".claude", "settings.json"), "utf8")
-);
-assert.deepStrictEqual(
-  countTokenHooks(shellInstallerExistingHookSettings),
-  { Bash: 1, Read: 1, Grep: 1, Glob: 1 },
-  "shell installer path should not add duplicate token hooks when target already has one"
-);
+      null,
+      2
+    ),
+    "utf8"
+  );
+  const shellInstallerExistingHookResult = spawnSync(
+    process.execPath,
+    [path.join(repoRoot, "bin", "cts.js"), "all", "--target", shellInstallerExistingHookTarget],
+    { encoding: "utf8" }
+  );
+  assert.strictEqual(
+    shellInstallerExistingHookResult.status,
+    0,
+    `shell installer existing hook path failed\nstdout:\n${shellInstallerExistingHookResult.stdout}\nstderr:\n${shellInstallerExistingHookResult.stderr}`
+  );
+  const shellInstallerExistingHookSettings = JSON.parse(
+    fs.readFileSync(path.join(shellInstallerExistingHookTarget, ".claude", "settings.json"), "utf8")
+  );
+  assert.deepStrictEqual(
+    countTokenHooks(shellInstallerExistingHookSettings),
+    { Bash: 1, Read: 1, Grep: 1, Glob: 1 },
+    "shell installer path should not add duplicate token hooks when target already has one"
+  );
+} else {
+  console.log("Bash not found; skipped shell installer duplicate-hook smoke test");
+}
 
 const duplicateDryRunTarget = path.join(tempRoot, "duplicate dry run target");
 fs.mkdirSync(path.join(duplicateDryRunTarget, ".claude"), { recursive: true });
@@ -284,27 +324,31 @@ verifyRiskSettings.hooks.PreToolUse.push(
   clone(verifyRiskSettings.hooks.PreToolUse.find((entry) => entry.matcher === "Bash"))
 );
 fs.writeFileSync(verifyRiskSettingsPath, JSON.stringify(verifyRiskSettings, null, 2), "utf8");
-const verifyRiskResult = spawnSync(
-  process.execPath,
-  [path.join(repoRoot, "bin", "cts.js"), "verify", "--target", verifyRiskTarget],
-  { encoding: "utf8" }
-);
-assert.strictEqual(
-  verifyRiskResult.status,
-  0,
-  `verify should warn, not fail, on duplicate hooks and missing block evidence\nstdout:\n${verifyRiskResult.stdout}\nstderr:\n${verifyRiskResult.stderr}`
-);
-const verifyRiskReport = JSON.parse(
-  fs.readFileSync(path.join(verifyRiskTarget, ".token-stack", "reports", "verify-report.json"), "utf8")
-);
-assert.ok(
-  verifyRiskReport.checks.some((check) => check.status === "WARN" && check.name === "token hook Bash" && check.detail.includes("duplicate")),
-  "verify should warn about duplicate token hooks"
-);
-assert.ok(
-  verifyRiskReport.checks.some((check) => check.status === "WARN" && check.name === "TOKEN_GUARD_MODE block evidence"),
-  "verify should warn when block mode lacks metrics/verify evidence"
-);
+if (bash) {
+  const verifyRiskResult = spawnSync(
+    process.execPath,
+    [path.join(repoRoot, "bin", "cts.js"), "verify", "--target", verifyRiskTarget],
+    { encoding: "utf8" }
+  );
+  assert.strictEqual(
+    verifyRiskResult.status,
+    0,
+    `verify should warn, not fail, on duplicate hooks and missing block evidence\nstdout:\n${verifyRiskResult.stdout}\nstderr:\n${verifyRiskResult.stderr}`
+  );
+  const verifyRiskReport = JSON.parse(
+    fs.readFileSync(path.join(verifyRiskTarget, ".token-stack", "reports", "verify-report.json"), "utf8")
+  );
+  assert.ok(
+    verifyRiskReport.checks.some((check) => check.status === "WARN" && check.name === "token hook Bash" && check.detail.includes("duplicate")),
+    "verify should warn about duplicate token hooks"
+  );
+  assert.ok(
+    verifyRiskReport.checks.some((check) => check.status === "WARN" && check.name === "TOKEN_GUARD_MODE block evidence"),
+    "verify should warn when block mode lacks metrics/verify evidence"
+  );
+} else {
+  console.log("Bash not found; skipped verify risk smoke test");
+}
 
 const missingTarget = path.join(tempRoot, "missing metrics target");
 const missingTargetResult = spawnSync(
@@ -401,6 +445,43 @@ const syntheticCompared = JSON.parse(syntheticCompareResult.stdout);
 assert.strictEqual(syntheticCompared.recommend_enter_block, false, "synthetic-only evidence must not recommend block mode");
 assert.deepStrictEqual(syntheticCompared.evidence_modes, ["synthetic-only"]);
 assert.strictEqual(syntheticCompared.recommendation_reason.representative_evidence, false);
+
+const customMetricsTarget = path.join(tempRoot, "custom metrics target");
+fs.mkdirSync(path.join(customMetricsTarget, ".token-stack", "reports", "baseline"), { recursive: true });
+fs.mkdirSync(path.join(customMetricsTarget, ".token-stack", "reports", "post"), { recursive: true });
+fs.writeFileSync(
+  path.join(customMetricsTarget, ".token-stack", "benchmark.config.json"),
+  JSON.stringify({ schema_version: 1, tasks: [{ id: "targeted-test", prompt: "Run targeted test." }] }),
+  "utf8"
+);
+for (const phase of ["baseline", "post"]) {
+  fs.writeFileSync(
+    path.join(customMetricsTarget, ".token-stack", "reports", phase, "targeted-test.json"),
+    JSON.stringify({
+      schema_version: 1,
+      mode: "ai-enabled",
+      evidence_type: "real",
+      phase,
+      task: "targeted-test",
+      task_success: true,
+      metrics: { input_tokens: phase === "baseline" ? 100 : 80, cost_usd: phase === "baseline" ? 1 : 0.8 },
+    }),
+    "utf8"
+  );
+}
+const customCompareResult = spawnSync(
+  process.execPath,
+  [path.join(repoRoot, "bin", "cts.js"), "compare-metrics", "--target", customMetricsTarget, "--dry-run"],
+  { encoding: "utf8" }
+);
+assert.strictEqual(
+  customCompareResult.status,
+  0,
+  `custom compare-metrics failed\nstdout:\n${customCompareResult.stdout}\nstderr:\n${customCompareResult.stderr}`
+);
+const customCompared = JSON.parse(customCompareResult.stdout);
+assert.ok(customCompared.tasks["targeted-test"], "compare-metrics should follow benchmark.config.json tasks");
+assert.ok(!customCompared.tasks["code-discovery"], "configured tasks should not force built-in task rows");
 
 const ps = findPowerShell();
 if (ps) {

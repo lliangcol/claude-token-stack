@@ -7,8 +7,8 @@ from pathlib import Path
 from typing import Any
 
 args = [arg for arg in sys.argv[1:] if arg not in {"scaffold", "tools", "all"}]
-dry_run = any(arg in {"dry-run", "--dry-run"} for arg in args)
-args = [arg for arg in args if arg not in {"dry-run", "--dry-run"}]
+dry_run = any(arg in {"dry-run", "--dry-run", "--no-write"} for arg in args)
+args = [arg for arg in args if arg not in {"dry-run", "--dry-run", "--no-write"}]
 root = Path(args[0]) if args else Path(".token-stack/reports")
 
 FIELDS = [
