@@ -143,6 +143,7 @@ node .\bin\cts.js compare-metrics .token-stack\reports
 ## 下一步
 
 - 英文主页：[README.md](README.md)
+- 实现原理 / How it works：[docs/architecture.md](docs/architecture.md)
 - 可复制 demo：[examples/README.md](examples/README.md)
 - demo 说明：[docs/demo.md](docs/demo.md)
 - synthetic case study：[docs/case-studies/synthetic-demo.md](docs/case-studies/synthetic-demo.md)

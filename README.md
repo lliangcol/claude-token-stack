@@ -360,7 +360,7 @@ For details, see [SECURITY.md](SECURITY.md).
 
 - [Getting Started](docs/getting-started.md)
 - [Installation](docs/installation.md)
-- [Architecture](docs/architecture.md)
+- [How it works / Architecture](docs/architecture.md)
 - [Benchmark](docs/benchmark.md)
 - [Operations](docs/operations.md)
 - [Demo](docs/demo.md)
