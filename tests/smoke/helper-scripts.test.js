@@ -74,6 +74,7 @@ assert.ok(!/verify-claude-token-stack\.sh"\s*\|\|\s*true/.test(unattendedRunner)
 assert.match(unattendedRunner, /BEST_EFFORT/, "advanced runner should expose explicit best-effort opt-in");
 assert.match(benchmarkRunner, /Refusing unsafe PERMISSION_MODE/, "benchmark runner should reject unsafe permission modes");
 assert.match(benchmarkRunner, /BENCHMARK_CONFIG/, "benchmark runner should support configurable tasks");
+assert.match(benchmarkRunner, /tr -d '\\r'/, "benchmark runner should strip CR from task ids before building report paths");
 
 const publicResearchPlan = fs.readFileSync(path.join(repoRoot, "docs", "research", "execution-plan-v2.md"), "utf8");
 const publicResearchReport = fs.readFileSync(path.join(repoRoot, "docs", "research", "research-report.md"), "utf8");
@@ -482,6 +483,39 @@ assert.strictEqual(
 const customCompared = JSON.parse(customCompareResult.stdout);
 assert.ok(customCompared.tasks["targeted-test"], "compare-metrics should follow benchmark.config.json tasks");
 assert.ok(!customCompared.tasks["code-discovery"], "configured tasks should not force built-in task rows");
+
+if (bash) {
+  const crlfBenchmarkRel = `.tmp/crlf-benchmark-${process.pid}`;
+  const crlfBenchmarkTarget = path.join(repoRoot, crlfBenchmarkRel);
+  fs.mkdirSync(path.join(crlfBenchmarkTarget, ".token-stack"), { recursive: true });
+  fs.writeFileSync(
+    path.join(crlfBenchmarkTarget, ".token-stack", "benchmark.config.json"),
+    JSON.stringify({
+      schema_version: 1,
+      tasks: [{ id: "crlf-task\r", prompt: "Run a CRLF task id smoke test." }],
+    }),
+    "utf8"
+  );
+  const crlfBenchmarkResult = spawnSync(
+    bash,
+    [
+      "-lc",
+      `CTS_TARGET_DIR='${crlfBenchmarkRel}' BENCHMARK_CONFIG='.token-stack/benchmark.config.json' bin/run-token-benchmark.sh post synthetic-only --no-write`,
+    ],
+    {
+      cwd: repoRoot,
+      encoding: "utf8",
+      env: process.env,
+    }
+  );
+  assert.strictEqual(
+    crlfBenchmarkResult.status,
+    0,
+    `benchmark should strip CR from configured task ids before writing reports\nstdout:\n${crlfBenchmarkResult.stdout}\nstderr:\n${crlfBenchmarkResult.stderr}`
+  );
+  assert.match(crlfBenchmarkResult.stdout, /- crlf-task: synthetic result written/, "benchmark output should use sanitized task id");
+  assert.ok(!crlfBenchmarkResult.stdout.includes("crlf-task\r"), "benchmark output should not retain CR in task id");
+}
 
 const ps = findPowerShell();
 if (ps) {

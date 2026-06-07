@@ -139,7 +139,15 @@ done
 
 TASKS=()
 while IFS= read -r task_id; do
-  [[ -n "$task_id" ]] && TASKS+=("$task_id")
+  task_id="$(printf '%s' "$task_id" | tr -d '\r' | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')"
+  [[ -z "$task_id" ]] && continue
+  case "$task_id" in
+    */*|*\\*)
+      echo "Invalid benchmark task id: $task_id" >&2
+      exit 2
+      ;;
+  esac
+  TASKS+=("$task_id")
 done < <(load_tasks)
 if [[ ${#TASKS[@]} -eq 0 ]]; then
   TASKS=(code-discovery test-failure long-log)
