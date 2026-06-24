@@ -51,6 +51,7 @@
     "docs/mcp-deduplication.md",
     "docs/mcp-local-smoke.md",
     "docs/research/execution-plan-v2.md",
+    "docs/research/deep-research-implementation-plan.md",
     "docs/research/research-report.md",
     "docs/rollback.md",
     "docs/security-model.md",
