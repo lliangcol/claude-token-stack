@@ -101,6 +101,7 @@
     "check:templates": "node -e \"const fs=require('fs'); const files=['templates/.mcp.local.example.json','templates/.claude/settings.json','templates/.claude/token-policy.md','templates/.claude/hooks/run-python-hook.js','templates/.claude/hooks/bash-token-guard.py','templates/.claude/hooks/cbm-gate.py','templates/.claude/output-styles/token-lean.md','templates/docs/claude-token-stack.md','templates/docs/claude-token-stack-rollback.md','templates/docs/context-pack-template.md','templates/docs/mcp-local-smoke.md','schemas/metrics.schema.json','schemas/metrics-summary.schema.json','schemas/benchmark.config.schema.json','schemas/case-study.schema.json','schemas/false-positive-review.schema.json','docs/examples/benchmark.config.example.json']; for (const f of files) { if (!fs.existsSync(f)) throw new Error(f+' missing'); } for (const f of ['templates/.claude/settings.json','templates/.mcp.local.example.json','schemas/metrics.schema.json','schemas/metrics-summary.schema.json','schemas/benchmark.config.schema.json','schemas/case-study.schema.json','schemas/false-positive-review.schema.json','docs/examples/benchmark.config.example.json']) JSON.parse(fs.readFileSync(f,'utf8'));\"",
     "check:native": "npm run check:node && npm run check:python && npm run check:templates && node bin/cts.js doctor --target . --json --no-write && node bin/cts.js audit-hooks --target . --json --no-write",
     "test:hooks": "node tests/smoke/hook-smoke.test.js",
+    "test:helpers": "node tests/smoke/helper-scripts.test.js",
     "test:package-surface": "node tests/smoke/package-surface.test.js",
     "test:package-install": "node tests/smoke/package-install.test.js",
     "test:cli-json": "node tests/smoke/cli-json-purity.test.js",
@@ -115,7 +116,7 @@
     "verify": "node bin/cts.js verify --target .tmp/verify-fixture",
     "benchmark": "bash bin/run-token-benchmark.sh post dry-run",
     "lint": "npm run check:node && npm run check:python && npm run check:shell && npm run check:templates",
-    "test": "npm run lint && npm run test:hooks && npm run test:package-surface && npm run test:package-install && npm run test:cli-json && npm run test:windows && npm run test:scaffold && npm run test:metrics && npm run test:artifacts && npm run test:readme && npm run test:safety-boundary && npm run test:schema && npm run test:maintenance-status && node bin/cts.js scaffold --target .tmp/verify-fixture && npm run verify"
+    "test": "npm run lint && npm run test:hooks && npm run test:helpers && npm run test:package-surface && npm run test:package-install && npm run test:cli-json && npm run test:windows && npm run test:scaffold && npm run test:metrics && npm run test:artifacts && npm run test:readme && npm run test:safety-boundary && npm run test:schema && npm run test:maintenance-status && node bin/cts.js scaffold --target .tmp/verify-fixture && npm run verify"
   },
   "keywords": [
     "claude-code",
