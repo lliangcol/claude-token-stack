@@ -14,9 +14,10 @@ function option(name, fallback) {
 const target = path.resolve(option("--target", process.cwd()));
 const budget = Number(option("--budget", "60000"));
 const outPath = path.resolve(target, option("--out", ".token-stack/context/context-pack.md"));
-const manifestPath = outPath.replace(/\.md$/i, ".manifest.json");
+const manifestPath = /\.md$/i.test(outPath) ? outPath.replace(/\.md$/i, ".manifest.json") : `${outPath}.manifest.json`;
 const jsonOutput = args.includes("--json");
 const noWrite = args.includes("--no-write") || args.includes("--dry-run") || args.includes("dry-run");
+const targetReal = fs.realpathSync(target);
 
 function printJson(value) {
   console.log(JSON.stringify(value, null, 2));
@@ -54,8 +55,13 @@ const TEXT_EXTENSIONS = new Set([
 const IGNORE_PARTS = new Set([".git", "node_modules", ".token-stack", ".claude/logs", "dist", "build", "coverage", "__pycache__"]);
 const SECRET_PATTERNS = [
   [
-    /\b([A-Za-z_][A-Za-z0-9_]*)(\s*[:=]\s*)["']?[^"'\s]+/g,
-    (match, key, separator) => /TOKEN|SECRET|PASSWORD|PRIVATE_KEY|API_KEY/i.test(key) ? `${key}${separator}[REDACTED]` : match
+    /(["']?)([A-Za-z_][A-Za-z0-9_]*)(["']?)(\s*[:=]\s*)(["']?)([^"',\s}]+)(["']?)/g,
+    (match, openKey, key, closeKey, separator, openValue, _value, closeValue) => {
+      if (!/TOKEN|SECRET|PASSWORD|PRIVATE_KEY|API_KEY/i.test(key)) return match;
+      const safeCloseKey = openKey && closeKey !== openKey ? openKey : closeKey;
+      const safeCloseValue = openValue && closeValue !== openValue ? openValue : closeValue;
+      return `${openKey}${key}${safeCloseKey}${separator}${openValue}[REDACTED]${safeCloseValue}`;
+    }
   ],
   [/(-----BEGIN [A-Z ]*PRIVATE KEY-----)[\s\S]*?(-----END [A-Z ]*PRIVATE KEY-----)/g, "$1\n[REDACTED]\n$2"]
 ];
@@ -102,9 +108,26 @@ function languageFor(file) {
   return ext || "text";
 }
 
+function isInsideRealTarget(filePath) {
+  const relative = path.relative(targetReal, filePath);
+  return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
+}
+
+function fileInfo(file) {
+  try {
+    const stat = fs.statSync(file);
+    if (!stat.isFile()) return null;
+    const real = fs.realpathSync(file);
+    if (!isInsideRealTarget(real)) return null;
+    return { file, relative: rel(file), size: stat.size };
+  } catch {
+    return null;
+  }
+}
+
 const candidates = (gitFiles() || walk(target))
-  .filter((file) => fs.existsSync(file) && fs.statSync(file).isFile())
-  .map((file) => ({ file, relative: rel(file), size: fs.statSync(file).size }))
+  .map(fileInfo)
+  .filter(Boolean)
   .filter((item) => !isIgnored(item.relative))
   .filter((item) => TEXT_EXTENSIONS.has(path.extname(item.file).toLowerCase()))
   .filter((item) => item.size <= 200000)

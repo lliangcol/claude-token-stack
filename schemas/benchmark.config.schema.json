@@ -3,6 +3,7 @@
   "$id": "https://github.com/lliangcol/claude-token-stack/schemas/benchmark.config.schema.json",
   "title": "Claude Token Stack Benchmark Config",
   "type": "object",
+  "required": ["schema_version", "tasks"],
   "properties": {
     "schema_version": {
       "type": "integer",

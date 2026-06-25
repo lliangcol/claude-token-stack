@@ -391,5 +391,102 @@ assert.ok(
   "drive-relative artifact validation should identify the case-study file with the unsafe reference"
 );
 
+writeMetricsSummary();
+writeFalsePositiveReview();
+writeCaseStudy();
+const outsideArtifactDir = path.join(tempRoot, "outside artifacts");
+fs.mkdirSync(outsideArtifactDir, { recursive: true });
+fs.writeFileSync(
+  path.join(outsideArtifactDir, "baseline.json"),
+  `${JSON.stringify({
+    schema_version: 1,
+    phase: "baseline",
+    task: "safe-rollout",
+    metrics: { input_tokens: 100, raw_large_output_events: 1, blocked_commands: 0, cost_usd: 1 },
+  })}\n`,
+  "utf8"
+);
+fs.writeFileSync(
+  path.join(outsideArtifactDir, "post.json"),
+  `${JSON.stringify({
+    schema_version: 1,
+    phase: "post",
+    task: "safe-rollout",
+    metrics: { input_tokens: 80, raw_large_output_events: 0, blocked_commands: 1, cost_usd: 0.8 },
+  })}\n`,
+  "utf8"
+);
+let artifactSymlinkCreated = false;
+try {
+  fs.rmSync(path.join(target, ".token-stack", "reports", "baseline", "safe-rollout.json"), { force: true });
+  fs.rmSync(path.join(target, ".token-stack", "reports", "post", "safe-rollout.json"), { force: true });
+  fs.symlinkSync(
+    path.join(outsideArtifactDir, "baseline.json"),
+    path.join(target, ".token-stack", "reports", "baseline", "safe-rollout.json")
+  );
+  fs.symlinkSync(
+    path.join(outsideArtifactDir, "post.json"),
+    path.join(target, ".token-stack", "reports", "post", "safe-rollout.json")
+  );
+  artifactSymlinkCreated = true;
+} catch {
+  artifactSymlinkCreated = false;
+}
+if (artifactSymlinkCreated) {
+  const symlinkReferenceResult = validate();
+  assert.strictEqual(symlinkReferenceResult.status, 1, "symlinked artifact references resolving outside target should fail validation");
+  assert.ok(
+    JSON.parse(symlinkReferenceResult.stdout).findings.some(
+      (finding) =>
+        finding.status === "FAIL" &&
+        finding.code === "artifact_reference_unsafe" &&
+        finding.file.endsWith(".token-stack/reports/case-studies/safe-rollout.json")
+    ),
+    "symlink artifact validation should identify the case-study file with the unsafe reference"
+  );
+}
+for (const phase of ["baseline", "post"]) {
+  fs.rmSync(path.join(target, ".token-stack", "reports", phase, "safe-rollout.json"), { force: true });
+  writeJson(`.token-stack/reports/${phase}/safe-rollout.json`, {
+    schema_version: 1,
+    mode: "ai-enabled",
+    evidence_type: "real",
+    phase,
+    task: "safe-rollout",
+    task_success: true,
+    metrics: {
+      input_tokens: phase === "baseline" ? 100 : 80,
+      raw_large_output_events: phase === "baseline" ? 1 : 0,
+      blocked_commands: phase === "baseline" ? 0 : 1,
+      cost_usd: phase === "baseline" ? 1 : 0.8,
+    },
+  });
+}
+
+writeJson(".token-stack/reports/false-positive-review.json", {
+  schema_version: 1,
+  reviewed_at: "2026-06-24T00:00:00Z",
+  reviewed_log_paths: [".claude/logs/token-guard.log"],
+  reviewed_entries: 1,
+  true_positive_count: 2,
+  false_positive_count: 0,
+  unclear_count: 0,
+});
+const invalidClassifiedCountsResult = validate();
+assert.strictEqual(
+  invalidClassifiedCountsResult.status,
+  1,
+  "false-positive review classified counts exceeding reviewed_entries should fail validation"
+);
+assert.ok(
+  JSON.parse(invalidClassifiedCountsResult.stdout).findings.some(
+    (finding) =>
+      finding.status === "FAIL" &&
+      finding.code === "false_positive_review_invalid" &&
+      finding.file.endsWith(".token-stack/reports/false-positive-review.json")
+  ),
+  "false-positive review semantic validation should identify classified count overflow"
+);
+
 assert.ok(fs.existsSync(caseStudyPath), "fixture should keep the case-study artifact local to the test target");
 console.log("artifact validation smoke tests passed");

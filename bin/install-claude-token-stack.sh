@@ -6,7 +6,7 @@ DRY_RUN=0
 for arg in "$@"; do
   case "$arg" in
     scaffold|tools|install-tools|all|preflight) MODE="$arg" ;;
-    dry-run|--dry-run) DRY_RUN=1 ;;
+    dry-run|--dry-run|--no-write) DRY_RUN=1 ;;
     -h|--help|help) MODE="help" ;;
   esac
 done
@@ -553,7 +553,11 @@ case "$MODE" in
     preflight
     scaffold
     install_tools
-    if bash "$KIT_DIR/bin/verify-claude-token-stack.sh"; then
+    verify_args=()
+    if [[ "$DRY_RUN" == "1" ]]; then
+      verify_args+=(--no-write)
+    fi
+    if bash "$KIT_DIR/bin/verify-claude-token-stack.sh" "${verify_args[@]}"; then
       write_report
     else
       record "verify" "failed" "verification script returned non-zero"

@@ -74,6 +74,8 @@ assertInvalid(metricsSummarySchema, {
 }, "metrics summary recommend_enter_block boolean");
 
 assertValid(benchmarkConfigSchema, readRepoJson("docs/examples/benchmark.config.example.json"), "benchmark config example");
+assertInvalid(benchmarkConfigSchema, { tasks: [{ id: "x" }] }, "benchmark missing schema_version");
+assertInvalid(benchmarkConfigSchema, { schema_version: 1 }, "benchmark missing tasks");
 assertInvalid(benchmarkConfigSchema, { schema_version: 1, tasks: [] }, "benchmark empty tasks");
 assertInvalid(benchmarkConfigSchema, { schema_version: 1, tasks: [{ prompt: "missing id" }] }, "benchmark task missing id");
 assertInvalid(benchmarkConfigSchema, { schema_version: 1, tasks: [{ id: "x", evidence_type: "demo" }] }, "benchmark invalid evidence_type");

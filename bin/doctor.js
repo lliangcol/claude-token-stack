@@ -180,8 +180,13 @@ for (const rel of [
   add(checks, fs.existsSync(filePath) ? "PASS" : "FAIL", `${rel} exists`);
 }
 
-for (const rel of ["package.json", "templates/.claude/settings.json", ".claude/settings.json", ".codex/hooks.json"]) {
-  const filePath = path.join(repoRoot, rel);
+for (const [rel, baseDir] of [
+  ["package.json", repoRoot],
+  ["templates/.claude/settings.json", repoRoot],
+  [".claude/settings.json", target],
+  [".codex/hooks.json", target],
+]) {
+  const filePath = path.join(baseDir, rel);
   if (!fs.existsSync(filePath)) {
     add(checks, "WARN", `${rel} JSON parse`, "file missing");
     continue;

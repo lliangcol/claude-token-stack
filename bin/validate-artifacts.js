@@ -15,6 +15,7 @@ function option(name, fallback) {
 const target = path.resolve(option("--target", process.env.CTS_TARGET_DIR || process.cwd()));
 const jsonOutput = args.includes("--json");
 const noWrite = args.includes("--no-write") || args.includes("--dry-run") || args.includes("dry-run");
+let targetReal = null;
 
 function rel(filePath) {
   return path.relative(target, filePath).replace(/\\/g, "/");
@@ -53,6 +54,43 @@ function validateJsonFile(findings, filePath, schema, label) {
   );
 }
 
+function validateFalsePositiveReviewFile(findings, filePath, schema) {
+  if (!fs.existsSync(filePath)) {
+    add(findings, "WARN", "artifact_missing", filePath, "false-positive review not found");
+    return;
+  }
+  let data;
+  try {
+    data = readJson(filePath);
+  } catch (exc) {
+    add(findings, "FAIL", "json_invalid", filePath, `false-positive review is not valid JSON: ${exc.message}`);
+    return;
+  }
+  const errors = validate(schema, data);
+  add(
+    findings,
+    errors.length === 0 ? "PASS" : "FAIL",
+    errors.length === 0 ? "schema_valid" : "schema_invalid",
+    filePath,
+    errors.length === 0 ? "false-positive review matches schema" : "false-positive review does not match schema",
+    errors
+  );
+  if (errors.length > 0 || !data || typeof data !== "object" || Array.isArray(data)) return;
+  const classified = ["true_positive_count", "false_positive_count", "unclear_count"]
+    .map((field) => data[field])
+    .filter((value) => Number.isInteger(value))
+    .reduce((total, value) => total + value, 0);
+  if (Number.isInteger(data.reviewed_entries) && classified > data.reviewed_entries) {
+    add(
+      findings,
+      "FAIL",
+      "false_positive_review_invalid",
+      filePath,
+      "classified counts must not exceed reviewed_entries"
+    );
+  }
+}
+
 function parseJsonOnly(findings, filePath, label) {
   if (!fs.existsSync(filePath)) {
     add(findings, "WARN", "artifact_missing", filePath, `${label} not found`);
@@ -69,6 +107,33 @@ function parseJsonOnly(findings, filePath, label) {
 function isInsideTarget(filePath) {
   const relative = path.relative(target, filePath);
   return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
+}
+
+function isInsideRealTarget(filePath) {
+  if (!targetReal) targetReal = fs.realpathSync(target);
+  const relative = path.relative(targetReal, filePath);
+  return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
+}
+
+function existingSafeFile(filePath) {
+  if (!fs.existsSync(filePath)) {
+    return { ok: false, missing: true };
+  }
+  let stat;
+  let real;
+  try {
+    stat = fs.statSync(filePath);
+    real = fs.realpathSync(filePath);
+  } catch (exc) {
+    return { ok: false, error: exc.message };
+  }
+  if (!stat.isFile()) {
+    return { ok: false, missing: true };
+  }
+  if (!isInsideRealTarget(real)) {
+    return { ok: false, error: "resolves outside target" };
+  }
+  return { ok: true, real };
 }
 
 function isWindowsDriveRelative(artifact) {
@@ -112,7 +177,18 @@ function validateCaseStudyReferences(findings, caseStudyPath, caseStudy) {
       continue;
     }
     const artifactPath = resolved.artifactPath;
-    if (!fs.existsSync(artifactPath) || !fs.statSync(artifactPath).isFile()) {
+    const safeFile = existingSafeFile(artifactPath);
+    if (safeFile.error) {
+      add(
+        findings,
+        "FAIL",
+        "artifact_reference_unsafe",
+        caseStudyPath,
+        `case-study artifact reference ${safeFile.error}: ${artifact}`
+      );
+      continue;
+    }
+    if (!safeFile.ok) {
       add(
         findings,
         "FAIL",
@@ -182,7 +258,7 @@ function sumReferencedMetric(artifacts, phase, metric) {
     const normalized = normalizeArtifactReference(artifact);
     if (!new RegExp(`^\\.token-stack/reports/${phase}/[^/]+\\.json$`).test(normalized)) continue;
     const resolved = resolveSafeArtifact(artifact);
-    if (!resolved.artifactPath || !fs.existsSync(resolved.artifactPath) || !fs.statSync(resolved.artifactPath).isFile()) continue;
+    if (!resolved.artifactPath || !existingSafeFile(resolved.artifactPath).ok) continue;
     let record;
     try {
       record = readJson(resolved.artifactPath);
@@ -287,7 +363,7 @@ function validateMetricsSummaryConsistency(findings, caseStudy, caseStudyPath) {
   );
   if (!summaryArtifact) return;
   const resolved = resolveSafeArtifact(summaryArtifact);
-  if (!resolved.artifactPath || !fs.existsSync(resolved.artifactPath) || !fs.statSync(resolved.artifactPath).isFile()) return;
+  if (!resolved.artifactPath || !existingSafeFile(resolved.artifactPath).ok) return;
   let summary;
   try {
     summary = readJson(resolved.artifactPath);
@@ -409,13 +485,14 @@ function listJsonFilesRecursive(dir) {
 }
 
 function uniqueExistingFiles(files) {
-  return [...new Set(files)].filter((filePath) => fs.existsSync(filePath) && fs.statSync(filePath).isFile());
+  return [...new Set(files)].filter((filePath) => existingSafeFile(filePath).ok);
 }
 
 if (!fs.existsSync(target) || !fs.statSync(target).isDirectory()) {
   console.error(`Target directory does not exist: ${target}`);
   process.exit(2);
 }
+targetReal = fs.realpathSync(target);
 
 const schemas = {
   metrics: readJson(path.join(repoRoot, "schemas", "metrics.schema.json")),
@@ -430,7 +507,7 @@ const findings = [];
 
 validateJsonFile(findings, path.join(target, ".token-stack", "benchmark.config.json"), schemas.benchmarkConfig, "benchmark config");
 parseJsonOnly(findings, path.join(reportsDir, "verify-report.json"), "verify report");
-validateJsonFile(findings, path.join(reportsDir, "false-positive-review.json"), schemas.falsePositiveReview, "false-positive review");
+validateFalsePositiveReviewFile(findings, path.join(reportsDir, "false-positive-review.json"), schemas.falsePositiveReview);
 validateJsonFile(findings, path.join(reportsDir, "metrics-summary.json"), schemas.metricsSummary, "metrics summary");
 
 const metricFiles = [

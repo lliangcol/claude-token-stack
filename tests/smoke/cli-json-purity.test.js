@@ -15,6 +15,7 @@ const presetTarget = path.join(preflightTempRoot, "preset target");
 const presetMissingSettingsTarget = path.join(preflightTempRoot, "preset missing settings");
 const observabilityTarget = path.join(preflightTempRoot, "observability target");
 const metricsTarget = path.join(preflightTempRoot, "metrics target");
+const invalidDoctorTarget = path.join(preflightTempRoot, "invalid doctor target");
 fs.writeFileSync(fileTarget, "not a directory\n", "utf8");
 fs.mkdirSync(eventTarget, { recursive: true });
 fs.mkdirSync(path.join(presetTarget, ".claude"), { recursive: true });
@@ -23,6 +24,8 @@ fs.mkdirSync(path.join(observabilityTarget, ".claude", "logs"), { recursive: tru
 fs.mkdirSync(path.join(observabilityTarget, ".token-stack", "reports"), { recursive: true });
 fs.mkdirSync(path.join(metricsTarget, ".token-stack", "reports", "baseline"), { recursive: true });
 fs.mkdirSync(path.join(metricsTarget, ".token-stack", "reports", "post"), { recursive: true });
+fs.mkdirSync(path.join(invalidDoctorTarget, ".claude"), { recursive: true });
+fs.writeFileSync(path.join(invalidDoctorTarget, ".claude", "settings.json"), "{ invalid json", "utf8");
 const presetSettingsPath = path.join(presetTarget, ".claude", "settings.json");
 const presetOriginalSettings = `${JSON.stringify({
   env: {
@@ -107,6 +110,20 @@ for (const [commandName, extraArgs] of [
   assert.strictEqual(result.stderr, "", `${commandName} --json --no-write should keep this smoke path stderr-clean`);
   JSON.parse(result.stdout);
 }
+
+const invalidDoctorResult = spawnSync(
+  process.execPath,
+  [cliPath, "doctor", "--target", invalidDoctorTarget, "--json", "--no-write"],
+  { encoding: "utf8" }
+);
+assert.strictEqual(invalidDoctorResult.status, 1, "doctor should fail when target .claude/settings.json is invalid");
+assert.strictEqual(invalidDoctorResult.stderr, "", "doctor --json invalid target settings should keep stderr clean");
+assert.ok(
+  JSON.parse(invalidDoctorResult.stdout).checks.some(
+    (check) => check.status === "FAIL" && check.name === ".claude/settings.json JSON parse"
+  ),
+  "doctor should parse target .claude/settings.json, not repo-local settings"
+);
 
 const eventStorePath = path.join(eventTarget, ".token-stack", "events", "events.jsonl");
 const eventRecordResult = spawnSync(
@@ -328,6 +345,20 @@ fs.writeFileSync(
   ].join("\n") + "\n",
   "utf8"
 );
+fs.writeFileSync(
+  path.join(redactionTarget, "config.json"),
+  `${JSON.stringify({ OPENAI_API_KEY: "sk-json-secret", nested: { DB_PASSWORD: "json-db-secret" } })}\n`,
+  "utf8"
+);
+let linkedSecretCreated = false;
+try {
+  const outsideSecret = path.join(preflightTempRoot, "outside-secret.json");
+  fs.writeFileSync(outsideSecret, `${JSON.stringify({ TOKEN: "outside-linked-secret" })}\n`, "utf8");
+  fs.symlinkSync(outsideSecret, path.join(redactionTarget, "linked-secret.json"));
+  linkedSecretCreated = true;
+} catch {
+  linkedSecretCreated = false;
+}
 const redactionResult = spawnSync(
   process.execPath,
   [cliPath, "pack-context", "--target", redactionTarget, "--budget", "5000", "--no-write"],
@@ -338,11 +369,44 @@ assert.strictEqual(
   0,
   `pack-context redaction smoke should pass\nstdout:\n${redactionResult.stdout}\nstderr:\n${redactionResult.stderr}`
 );
-for (const secretValue of ["tok123", "sec123", "pass123", "key123", "api123", "sk-test-123", "dbpass", "spacedpass"]) {
+for (const secretValue of [
+  "tok123",
+  "sec123",
+  "pass123",
+  "key123",
+  "api123",
+  "sk-test-123",
+  "dbpass",
+  "spacedpass",
+  "sk-json-secret",
+  "json-db-secret",
+]) {
   assert.ok(!redactionResult.stdout.includes(secretValue), `pack-context should redact ${secretValue}`);
+}
+if (linkedSecretCreated) {
+  assert.ok(!redactionResult.stdout.includes("outside-linked-secret"), "pack-context should not follow symlinks outside target");
 }
 assert.match(redactionResult.stdout, /TOKEN=\[REDACTED\]/);
 assert.match(redactionResult.stdout, /password = \[REDACTED\]/);
+
+const customOutTarget = path.join(preflightTempRoot, "custom out target");
+fs.mkdirSync(customOutTarget, { recursive: true });
+fs.writeFileSync(path.join(customOutTarget, "a.txt"), "hello\n", "utf8");
+const customOutPath = path.join(customOutTarget, ".token-stack", "context", "context.txt");
+const customOutResult = spawnSync(
+  process.execPath,
+  [cliPath, "pack-context", "--target", customOutTarget, "--out", customOutPath, "--budget", "1000", "--json"],
+  { encoding: "utf8" }
+);
+assert.strictEqual(
+  customOutResult.status,
+  0,
+  `pack-context custom --out should pass\nstdout:\n${customOutResult.stdout}\nstderr:\n${customOutResult.stderr}`
+);
+const customOutPayload = JSON.parse(customOutResult.stdout);
+assert.notStrictEqual(customOutPayload.out, customOutPayload.manifest, "pack-context manifest path should not equal custom out path");
+assert.match(fs.readFileSync(customOutPayload.out, "utf8"), /^# Claude Token Stack Context Pack/);
+assert.strictEqual(JSON.parse(fs.readFileSync(customOutPayload.manifest, "utf8")).command, "pack-context");
 
 const compareMetricsResult = spawnSync(
   process.execPath,

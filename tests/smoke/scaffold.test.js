@@ -154,6 +154,32 @@ if (bash) {
     { Bash: 1, Read: 1, Grep: 1, Glob: 1 },
     "shell installer path should not add duplicate token hooks when target already has one"
   );
+
+  const shellInstallerDryRunTarget = path.join(repoRoot, ".tmp", `scaffold-shell-dry-run-${Date.now()}`);
+  const shellInstallerDryRunScaffold = spawnSync(
+    process.execPath,
+    [path.join(repoRoot, "bin", "cts.js"), "scaffold", "--target", shellInstallerDryRunTarget],
+    { encoding: "utf8" }
+  );
+  assert.strictEqual(
+    shellInstallerDryRunScaffold.status,
+    0,
+    `shell installer dry-run fixture scaffold failed\nstdout:\n${shellInstallerDryRunScaffold.stdout}\nstderr:\n${shellInstallerDryRunScaffold.stderr}`
+  );
+  fs.rmSync(path.join(shellInstallerDryRunTarget, ".token-stack"), { recursive: true, force: true });
+  fs.rmSync(path.join(shellInstallerDryRunTarget, ".claude", "logs"), { recursive: true, force: true });
+  const shellInstallerDryRunResult = spawnSync(
+    process.execPath,
+    [path.join(repoRoot, "bin", "cts.js"), "all", "--target", shellInstallerDryRunTarget, "--dry-run"],
+    { encoding: "utf8" }
+  );
+  assert.strictEqual(
+    shellInstallerDryRunResult.status,
+    0,
+    `all --dry-run should pass without target writes\nstdout:\n${shellInstallerDryRunResult.stdout}\nstderr:\n${shellInstallerDryRunResult.stderr}`
+  );
+  assert.ok(!fs.existsSync(path.join(shellInstallerDryRunTarget, ".token-stack")), "all --dry-run should not create .token-stack");
+  assert.ok(!fs.existsSync(path.join(shellInstallerDryRunTarget, ".claude", "logs")), "all --dry-run should not create .claude/logs");
 } else {
   console.log("Bash not found; skipped shell installer duplicate-hook smoke test");
 }
