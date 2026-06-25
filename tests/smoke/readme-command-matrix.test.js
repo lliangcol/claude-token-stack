@@ -42,11 +42,31 @@ function assertCommandRows(markdown, label) {
   }
 }
 
+function commandRows(markdown, heading) {
+  const headingIndex = markdown.indexOf(heading);
+  assert.ok(headingIndex >= 0, `README should include ${heading}`);
+  const tableStart = markdown.indexOf("| Command", headingIndex);
+  const zhTableStart = markdown.indexOf("| 命令", headingIndex);
+  const start = tableStart >= 0 && (zhTableStart < 0 || tableStart < zhTableStart) ? tableStart : zhTableStart;
+  assert.ok(start >= 0, `${heading} should include a command table`);
+  const rows = markdown.slice(start).split(/\r?\n/).filter((line) => line.startsWith("|"));
+  return rows
+    .slice(2)
+    .map((line) => /^\|\s*`([^`]+)`\s*\|/.exec(line))
+    .filter(Boolean)
+    .map((match) => match[1]);
+}
+
 assert.match(readmeEn, /## Command Behavior/);
 assert.match(readmeZh, /## 命令行为/);
 
 assertCommandRows(readmeEn, "English");
 assertCommandRows(readmeZh, "Chinese");
+assert.deepStrictEqual(
+  commandRows(readmeZh, "## 命令行为"),
+  commandRows(readmeEn, "## Command Behavior"),
+  "English and Chinese README command tables should stay in the same order"
+);
 
 for (const marker of [
   "--json only covers CLI preflight errors",

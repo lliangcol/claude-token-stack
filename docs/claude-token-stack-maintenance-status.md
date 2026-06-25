@@ -71,6 +71,7 @@ The default posture is offline/local-first, warn-first, no default network acces
 - Second pass full validation on 2026-06-25: `npm run check:native`, `npm test`, and `npm pack --dry-run` passed.
 - Third pass package surface decision on 2026-06-25: maintenance status remains repo-only; package surface smoke now asserts it is absent from npm pack output.
 - Third pass validation on 2026-06-25: `node tests/smoke/package-surface.test.js`, `node tests/smoke/cli-json-purity.test.js`, `node tests/smoke/maintenance-status.test.js`, `npm run check:native`, `npm test`, and `npm pack --dry-run` passed.
+- Fourth pass MCP/tool doc boundary on 2026-06-25: Headroom and codebase-memory-mcp docs now preserve explicit opt-in, local-first, no hidden upload, and duplicate-context boundaries through `tests/smoke/safety-boundary.test.js`.
 - Native environment observed by `doctor`: Windows, Node v24.16.0, npm 11.13.0, Python 3.12.13, Bash 5.3.9, Claude Code 2.1.173.
 - `doctor --json --no-write`: 27 PASS.
 - `audit-hooks --json --no-write`: 10 PASS.
@@ -85,14 +86,14 @@ The default posture is offline/local-first, warn-first, no default network acces
 
 ## Backlog Candidates
 
-1. Review MCP/tool docs for duplicate-context warnings and explicit local-only data boundaries, especially Headroom and codebase-memory-mcp notes.
+1. Keep README/README_zh-CN command behavior tables synchronized when new commands or write modes are added.
 2. Extend no-write/JSON purity coverage around remaining Bash-backed preflight cases if new Bash commands are added.
-3. Keep README/README_zh-CN command behavior tables synchronized when new commands or write modes are added.
+3. Re-check package whitelist whenever user-facing docs, schemas, or bin entrypoints are added.
 
 ## Selected Work Package
 
-Implement the third pass package whitelist review by keeping `docs/claude-token-stack-maintenance-status.md` repo-only and asserting that decision in `tests/smoke/package-surface.test.js`. This avoids shipping maintainer workflow state to npm users while preserving the user-facing docs allowlist.
+Implement this pass by strengthening `tests/smoke/readme-command-matrix.test.js` so the English and Chinese command behavior tables must keep the same command rows in the same order. This is a narrow documentation guard and does not change CLI behavior, schemas, package contents, or installer behavior.
 
 ## Next Candidate
 
-After this pass, review MCP/tool docs for duplicate-context warnings and explicit local-only data boundaries, especially Headroom and codebase-memory-mcp notes.
+After this pass, review whether command write/no-write behavior details should be parsed into a stricter structured doc test, or whether the current command-row synchronization is enough for the next release candidate.
