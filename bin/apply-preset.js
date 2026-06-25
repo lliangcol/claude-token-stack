@@ -34,22 +34,45 @@ const PRESETS = {
   }
 };
 
-if (!Object.prototype.hasOwnProperty.call(PRESETS, presetName)) {
-  console.error(`Unknown preset: ${presetName}. Use soft, balanced, or strict.`);
+function printJson(value) {
+  console.log(JSON.stringify(value, null, 2));
+}
+
+function fail(code, message, extra = {}) {
+  if (jsonOutput) {
+    printJson({
+      schema_version: 1,
+      command: "preset",
+      target,
+      preset: presetName,
+      settings_path: settingsPath,
+      error: {
+        code,
+        message,
+        ...extra
+      }
+    });
+  } else {
+    console.error(message);
+  }
   process.exit(2);
 }
 
+if (!Object.prototype.hasOwnProperty.call(PRESETS, presetName)) {
+  fail("unknown_preset", `Unknown preset: ${presetName}. Use soft, balanced, or strict.`, {
+    allowed: Object.keys(PRESETS)
+  });
+}
+
 if (!fs.existsSync(settingsPath)) {
-  console.error(`Missing settings file: ${settingsPath}. Run scaffold first.`);
-  process.exit(2);
+  fail("settings_missing", `Missing settings file: ${settingsPath}. Run scaffold first.`);
 }
 
 let settings;
 try {
   settings = JSON.parse(fs.readFileSync(settingsPath, "utf8"));
 } catch (exc) {
-  console.error(`Invalid settings JSON: ${exc.message}`);
-  process.exit(2);
+  fail("invalid_settings_json", `Invalid settings JSON: ${exc.message}`);
 }
 
 const before = Object.assign({}, settings.env || {});
@@ -78,7 +101,7 @@ const report = {
 };
 
 if (jsonOutput) {
-  console.log(JSON.stringify(report, null, 2));
+  printJson(report);
 } else {
   console.log(`# Preset ${presetName}`);
   console.log("");

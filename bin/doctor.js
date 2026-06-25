@@ -26,10 +26,40 @@ function run(cmd, runArgs = [], options = {}) {
   });
 }
 
-function commandVersion(candidates, versionArgs = ["--version"]) {
+function quoteCmdArg(value) {
+  const text = String(value);
+  if (/^[A-Za-z0-9_./:\\=-]+$/.test(text)) return text;
+  return `"${text.replace(/"/g, '""')}"`;
+}
+
+function commandVersionViaCmd(cmd, versionArgs = ["--version"]) {
+  if (process.platform !== "win32") return null;
+  const command = [cmd, ...versionArgs].map(quoteCmdArg).join(" ");
+  const result = run("cmd.exe", ["/d", "/s", "/c", command]);
+  if (result.error && result.error.code === "ENOENT") return null;
+  if (result.error) return { found: false, command: cmd, error: result.error.message };
+  const text = `${result.stdout || ""}${result.stderr || ""}`.split(/\r?\n/).find(Boolean) || "";
+  if (result.status === 0) {
+    return { found: true, command: cmd, version: `${text.trim()} (via cmd.exe)`, status: result.status };
+  }
+  return {
+    found: false,
+    command: cmd,
+    error: text.trim() || `exit ${result.status}`,
+    status: result.status
+  };
+}
+
+function commandVersion(candidates, versionArgs = ["--version"], options = {}) {
   for (const cmd of candidates) {
     const result = run(cmd, versionArgs);
-    if (result.error && result.error.code === "ENOENT") continue;
+    if (result.error && result.error.code === "ENOENT") {
+      if (options.windowsCmdFallback) {
+        const viaCmd = commandVersionViaCmd(cmd, versionArgs);
+        if (viaCmd && viaCmd.found) return viaCmd;
+      }
+      continue;
+    }
     if (result.error) return { found: false, command: cmd, error: result.error.message };
     const text = `${result.stdout || ""}${result.stderr || ""}`.split(/\r?\n/).find(Boolean) || "";
     return { found: result.status === 0, command: cmd, version: text.trim(), status: result.status };
@@ -130,7 +160,7 @@ for (const [name, candidates] of [
   ["bash", ["bash"]],
   ["claude", ["claude"]]
 ]) {
-  const version = name === "npm" ? npmVersion() : commandVersion(candidates);
+  const version = name === "npm" ? npmVersion() : commandVersion(candidates, ["--version"], { windowsCmdFallback: name === "claude" });
   if (name === "bash" || name === "claude") {
     add(checks, version.found ? "PASS" : "WARN", `${name} available`, version.version || version.error || "");
   } else {

@@ -119,7 +119,7 @@
   - `tests/golden/metrics/baseline/*.json`
   - `tests/golden/metrics/post/*.json`
   - `tests/golden/metrics/expected-metrics-summary.json`
-  - `tests/smoke/helper-scripts.test.js` 或新增测试文件
+  - `tests/smoke/metrics-compare.test.js` 或新增测试文件
 - 任务内容：
   - 建立至少 3 组 golden case：
     - 单 task 正常 baseline/post。

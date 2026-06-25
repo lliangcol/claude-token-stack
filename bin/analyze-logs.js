@@ -35,6 +35,10 @@ const summary = {
   schema_version: 1,
   command: "analyze-logs",
   target,
+  outputs: {
+    json: outJson,
+    markdown: outMd
+  },
   files: [],
   totals: {
     records: 0,

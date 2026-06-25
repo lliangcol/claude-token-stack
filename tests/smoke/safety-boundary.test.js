@@ -1,0 +1,68 @@
+#!/usr/bin/env node
+const assert = require("assert");
+const fs = require("fs");
+const path = require("path");
+
+const repoRoot = path.resolve(__dirname, "..", "..");
+
+function walkFiles(dir, predicate, output = []) {
+  if (!fs.existsSync(dir)) return output;
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const fullPath = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      walkFiles(fullPath, predicate, output);
+    } else if (predicate(fullPath)) {
+      output.push(fullPath);
+    }
+  }
+  return output.sort();
+}
+
+function fencedCodeLines(markdown) {
+  const lines = markdown.split(/\r?\n/);
+  const codeLines = [];
+  let inFence = false;
+  for (const line of lines) {
+    if (/^\s*```/.test(line)) {
+      inFence = !inFence;
+      continue;
+    }
+    if (inFence) codeLines.push(line);
+  }
+  return codeLines;
+}
+
+const unsafePipeShellPattern = /\b(?:curl|wget)\b[^\n|]*\|\s*(?:sh|bash)\b/i;
+const dangerousPermissionBypassPattern = /\bdangerously-skip-permissions\b/i;
+
+const markdownSafetyFiles = [
+  "README.md",
+  "README_zh-CN.md",
+  "SECURITY.md",
+  "ARCHITECTURE.md",
+  "ROADMAP.md",
+  ...walkFiles(path.join(repoRoot, "docs"), (filePath) => filePath.endsWith(".md")).map((filePath) =>
+    path.relative(repoRoot, filePath)
+  ),
+];
+
+for (const rel of markdownSafetyFiles) {
+  const codeLines = fencedCodeLines(fs.readFileSync(path.join(repoRoot, rel), "utf8"));
+  assert.ok(
+    !codeLines.some((line) => unsafePipeShellPattern.test(line)),
+    `${rel} must not include executable curl/wget pipe-shell examples`
+  );
+  assert.ok(
+    !codeLines.some((line) => dangerousPermissionBypassPattern.test(line)),
+    `${rel} must not include dangerously-skip-permissions examples in executable blocks`
+  );
+}
+
+for (const filePath of walkFiles(path.join(repoRoot, "bin"), (candidate) => /\.(js|py|ps1|sh)$/.test(candidate))) {
+  const rel = path.relative(repoRoot, filePath);
+  const body = fs.readFileSync(filePath, "utf8");
+  assert.ok(!unsafePipeShellPattern.test(body), `${rel} must not execute curl/wget piped into a shell`);
+  assert.ok(!dangerousPermissionBypassPattern.test(body), `${rel} must not use dangerously-skip-permissions`);
+}
+
+console.log("safety boundary smoke tests passed");

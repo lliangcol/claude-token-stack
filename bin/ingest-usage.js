@@ -78,6 +78,10 @@ const summary = {
   command: "ingest-usage",
   target,
   root,
+  outputs: {
+    json: outJson,
+    markdown: outMd
+  },
   files: [],
   totals: {}
 };

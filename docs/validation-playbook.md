@@ -63,6 +63,7 @@ node bin/cts.js benchmark baseline synthetic-only --target .
 node bin/cts.js benchmark post synthetic-only --target .
 node bin/cts.js collect-metrics .token-stack/reports
 node bin/cts.js compare-metrics .token-stack/reports
+node bin/cts.js validate-artifacts --target . --json --no-write
 ```
 
 Optional real Claude Code benchmark:
@@ -72,6 +73,7 @@ node bin/cts.js benchmark baseline ai-enabled --target .
 node bin/cts.js benchmark post ai-enabled --target .
 node bin/cts.js collect-metrics .token-stack/reports
 node bin/cts.js compare-metrics .token-stack/reports
+node bin/cts.js validate-artifacts --target . --json --no-write
 ```
 
 Keep real runs budgeted with `BENCHMARK_MAX_TURNS` and `BENCHMARK_MAX_BUDGET_USD`.
@@ -91,10 +93,14 @@ Key fields:
 - `cache_hit_rate`: cache read ratio for baseline and post.
 - `cost_change_usd`: post cost minus baseline cost.
 - `cost_change_pct`: relative cost change.
+- `evidence_types`: metric record labels such as `synthetic`, `real`, or `mixed`.
+- `promotion_evidence`: local verify report, hook log, and false-positive review artifact presence.
 - `recommend_enter_block`: machine recommendation for moving to block.
 - `recommendation_reason`: booleans explaining the recommendation.
 
-`recommend_enter_block` is true only when post tasks pass, raw large output events are not worse, cost is not worse, post data includes blocked command events, and the evidence is representative. Synthetic-only evidence keeps `recommend_enter_block` false.
+`cts validate-artifacts --target . --json --no-write` validates the summary shape against `schemas/metrics-summary.schema.json` and then checks referenced case-study totals against baseline/post metric artifacts.
+
+`recommend_enter_block` is true only when post tasks pass, raw large output events are not worse, cost is not worse, post data includes blocked command events, the evidence is representative, and promotion evidence is present. Missing `evidence_type`, synthetic-only mode, and `evidence_type: synthetic` keep `recommend_enter_block` false.
 
 ## Deciding Whether To Enter Block
 
@@ -106,6 +112,7 @@ Minimum criteria:
 - Target repo `verify` has no failures.
 - Claude Code integration test produces warnings in warn mode.
 - Hook logs show low false positives for normal workflows.
+- `.token-stack/reports/false-positive-review.json` records the reviewed sample and false-positive count.
 - `metrics-summary.json` has `"recommend_enter_block": true` for representative data.
 - The team accepts the rollback path.
 
@@ -116,7 +123,7 @@ Use hook logs as the final promotion gate:
 3. Keep `Read` in warn unless source-read warnings have near-zero false positives and the team accepts the interruption cost.
 4. Promote only deterministic high-noise Bash rules first. Test/build advisories should remain warn-only unless a project explicitly opts into stricter local rules.
 5. Promote `Grep`/`Glob` blocking only when broad-search warnings are consistently true positives and narrowed retries are easy.
-6. Record the reviewed log sample, false-positive count, rollback owner, and rollback command in `.token-stack/reports/`.
+6. Record the reviewed log sample, false-positive count, rollback owner, and rollback command in `.token-stack/reports/false-positive-review.json`.
 
 Recommended first block:
 

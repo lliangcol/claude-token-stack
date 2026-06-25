@@ -16,6 +16,21 @@ const jsonOutput = args.includes("--json");
 const noWrite = args.includes("--no-write") || args.includes("--dry-run") || args.includes("dry-run");
 const storePath = path.join(target, ".token-stack", "events", "events.jsonl");
 
+function printJson(value) {
+  console.log(JSON.stringify(value, null, 2));
+}
+
+function errorPayload(code, message) {
+  return {
+    schema_version: 1,
+    command: "events",
+    action,
+    target,
+    store: storePath,
+    error: { code, message }
+  };
+}
+
 function readEvents() {
   if (!fs.existsSync(storePath)) return [];
   return fs.readFileSync(storePath, "utf8")
@@ -40,14 +55,30 @@ if (action === "record") {
     source: "cts events"
   };
   if (!event.message) {
-    console.error("events record requires --message");
+    if (jsonOutput) {
+      printJson(errorPayload("message_missing", "events record requires --message"));
+    } else {
+      console.error("events record requires --message");
+    }
     process.exit(2);
   }
   if (!noWrite) {
     fs.mkdirSync(path.dirname(storePath), { recursive: true });
     fs.appendFileSync(storePath, `${JSON.stringify(event)}\n`, "utf8");
   }
-  console.log(JSON.stringify(Object.assign({}, event, { dry_run: noWrite }), null, 2));
+  if (jsonOutput) {
+    printJson({
+      schema_version: 1,
+      command: "events",
+      action: "record",
+      target,
+      store: storePath,
+      dry_run: noWrite,
+      event
+    });
+  } else {
+    printJson(Object.assign({}, event, { dry_run: noWrite }));
+  }
   process.exit(0);
 }
 
@@ -67,7 +98,7 @@ const summary = {
 };
 
 if (jsonOutput) {
-  console.log(JSON.stringify(summary, null, 2));
+  printJson(summary);
 } else {
   console.log("# Event Store");
   console.log("");

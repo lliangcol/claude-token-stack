@@ -283,6 +283,8 @@ data.setdefault("phase", phase)
 data.setdefault("task", task)
 data.setdefault("task_success", int(code) == 0)
 data.setdefault("wall_time_seconds", float(elapsed))
+data.setdefault("mode", "ai-enabled")
+data.setdefault("evidence_type", "real")
 p.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
 PY
 }

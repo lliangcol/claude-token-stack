@@ -461,9 +461,9 @@ function scaffold() {
 }
 
 function runScript(script, extraArgs = []) {
-  ensureBashAvailable();
   const target = targetDir();
   ensureExistingTargetDir(target);
+  ensureBashAvailable();
   const scriptPath = path.join(root, "bin", script);
   const bashTarget = toBashPath(target);
   const scriptArgs = extraArgs.map(shellQuote).join(" ");
@@ -478,7 +478,7 @@ function runScript(script, extraArgs = []) {
     shell: false
   });
   if (result.error) {
-    console.error(result.error.message);
+    failCliError("bash_execution_failed", result.error.message, { target });
     process.exit(2);
   }
   process.exit(result.status ?? 2);
@@ -490,11 +490,15 @@ function ensureBashAvailable() {
     shell: false
   });
   if (result.error && result.error.code === "ENOENT") {
-    console.error("claude-token-stack: this command uses Bash scripts. Install Git Bash/WSL2, or use scaffold/collect-metrics/compare-metrics only from native PowerShell.");
+    failCliError(
+      "bash_missing",
+      "claude-token-stack: this command uses Bash scripts. Install Git Bash/WSL2, or use scaffold/collect-metrics/compare-metrics only from native PowerShell.",
+      { target: targetDir() }
+    );
     process.exit(2);
   }
   if (result.error) {
-    console.error(result.error.message);
+    failCliError("bash_check_failed", result.error.message, { target: targetDir() });
     process.exit(2);
   }
 }
@@ -559,12 +563,15 @@ function runPython(script, extraArgs = []) {
     });
     if (result.error && result.error.code === "ENOENT") continue;
     if (result.error) {
-      console.error(result.error.message);
+      failCliError("python_execution_failed", result.error.message, { target, python_candidates: candidates });
       process.exit(2);
     }
     process.exit(result.status ?? 2);
   }
-  console.error(`Python not found. Tried: ${candidates.join(", ")}`);
+  failCliError("python_missing", `Python not found. Tried: ${candidates.join(", ")}`, {
+    target,
+    python_candidates: candidates
+  });
   process.exit(2);
 }
 
@@ -579,7 +586,7 @@ function runNodeTool(script, extraArgs = args.slice(1)) {
     shell: false
   });
   if (result.error) {
-    console.error(result.error.message);
+    failCliError("node_tool_execution_failed", result.error.message, { target });
     process.exit(2);
   }
   process.exit(result.status ?? 2);
@@ -587,13 +594,48 @@ function runNodeTool(script, extraArgs = args.slice(1)) {
 
 function ensureExistingTargetDir(target) {
   if (!fs.existsSync(target)) {
-    console.error(`Target directory does not exist: ${target}`);
+    failCliError("target_missing", `Target directory does not exist: ${target}`, { target });
     process.exit(2);
   }
   if (!fs.statSync(target).isDirectory()) {
-    console.error(`Target is not a directory: ${target}`);
+    failCliError("target_not_directory", `Target is not a directory: ${target}`, { target });
     process.exit(2);
   }
+}
+
+function failCliError(code, message, extra = {}) {
+  if (jsonOutput) {
+    console.log(JSON.stringify({
+      schema_version: 1,
+      command,
+      target: extra.target || targetDir(),
+      error: {
+        code,
+        message,
+        ...Object.fromEntries(Object.entries(extra).filter(([key]) => key !== "target"))
+      },
+    }, null, 2));
+    return;
+  }
+  console.error(message);
+}
+
+function printHelp() {
+  console.log(`Usage: claude-token-stack <command> [options]
+
+JSON/no-write commands:
+  doctor, audit-hooks, pack-context, analyze-logs, ingest-usage, events, preset,
+  collect-metrics, compare-metrics, validate-artifacts
+
+Scaffold and Bash-backed commands:
+  scaffold, verify, benchmark, tools, all, advanced-unattended
+  scaffold supports --dry-run/--no-write and JSON plans in dry-run mode.
+  --json is reserved for CLI preflight errors on Bash-backed commands; script output is human-readable.
+
+Common options:
+  --target DIR
+  --json
+  --no-write | --dry-run | dry-run`);
 }
 
 switch (command) {
@@ -611,6 +653,9 @@ switch (command) {
     break;
   case "compare-metrics":
     runPython("compare-metrics.py", passthroughArgs());
+    break;
+  case "validate-artifacts":
+    runNodeTool("validate-artifacts.js");
     break;
   case "doctor":
     runNodeTool("doctor.js");
@@ -646,6 +691,6 @@ switch (command) {
     break;
   case "help":
   default:
-    console.log("Usage: claude-token-stack <scaffold|verify|benchmark|collect-metrics|compare-metrics|doctor|audit-hooks|pack-context|analyze-logs|ingest-usage|events|preset|tools|all|advanced-unattended> [--target DIR] [dry-run|--dry-run|--no-write|--json]");
+    printHelp();
     break;
 }

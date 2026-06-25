@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/lliangcol/claude-token-stack/schemas/metrics-summary.schema.json",
+  "title": "Claude Token Stack Metrics Summary",
+  "type": "object",
+  "required": ["schema_version", "totals", "evidence_types", "recommend_enter_block"],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1
+    },
+    "root": {
+      "type": "string"
+    },
+    "tasks": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "totals": {
+      "type": "object",
+      "required": ["baseline", "post"],
+      "properties": {
+        "baseline": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "post": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "delta": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": true
+    },
+    "cache_hit_rate": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "cost_change_usd": {
+      "type": "number"
+    },
+    "evidence_types": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": ["synthetic", "real", "mixed"]
+      }
+    },
+    "evidence_modes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "promotion_evidence": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "recommend_enter_block": {
+      "type": "boolean"
+    },
+    "recommendation_reason": {
+      "type": "object",
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

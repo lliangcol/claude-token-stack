@@ -85,6 +85,9 @@ node bin/cts.js verify --target /path/to/your-repo
 - `.token-stack/reports/post/*.json`
 - `.token-stack/reports/metrics-summary.json`
 - `.token-stack/reports/metrics-summary.md`
+- `.token-stack/reports/false-positive-review.json`
+- `.claude/logs/token-guard.log`
+- `.claude/logs/cbm-gate.log`
 
 ## Benchmark
 
@@ -94,9 +97,12 @@ synthetic benchmark 用于确认流程是否打通：
 node bin/cts.js benchmark synthetic-only --target .
 node bin/cts.js collect-metrics .token-stack/reports
 node bin/cts.js compare-metrics .token-stack/reports
+node bin/cts.js validate-artifacts --target . --json --no-write
 ```
 
-benchmark 可以读取 `.token-stack/benchmark.config.json`。真实节省需要在代表性任务上做 baseline/post 对比。不要把 demo 输出写成真实 savings claim。
+`validate-artifacts --json --no-write` 只把校验 payload 写到 stdout，不写文件。去掉 `--no-write` 后会在本地写出 `.token-stack/reports/artifact-validation.json`、`.token-stack/reports/artifact-validation.md` 和 `.token-stack/reports/artifact-validation.html`；HTML 报告是静态本地文件。
+
+benchmark 可以读取 `.token-stack/benchmark.config.json`。真实节省需要在代表性任务上做 baseline/post 对比，并用 `evidence_type: real` 或 `mixed` 标注；进入 block 的机器建议还需要 verify report、hook logs、符合 `schemas/false-positive-review.schema.json` 的 `.token-stack/reports/false-positive-review.json` 和通过的本地 artifact validation。不要把 demo、缺失 `evidence_type` 或 `evidence_type: synthetic` 输出写成真实 savings claim。
 
 本地上下文包、日志和 usage 证据：
 
@@ -106,6 +112,36 @@ node bin/cts.js analyze-logs --target .
 node bin/cts.js ingest-usage --target .
 node bin/cts.js events record --target . --type rollout --message "warn-mode smoke complete"
 ```
+
+## 命令行为
+
+多数命令接受 `--target DIR`。目标不存在或不是目录时退出 `2`，错误码是
+`target_missing` 或 `target_not_directory`。运行时缺失时，Python-backed
+命令返回 `python_missing`，Bash-backed 命令返回 `bash_missing`。在 `--json`
+preflight 失败中，JSON 只写 stdout，stderr 保持为空。
+
+JSON/no-write 命令会提供完整 stdout JSON payload。对于 Bash-backed 命令，
+`--json 仅覆盖 CLI preflight 错误`；脚本主体输出仍是 human-readable。
+
+| 命令 | 用途 | 默认写入 | JSON/no-write 行为 |
+| --- | --- | --- | --- |
+| `scaffold` | 安装仓库本地策略、hook、文档和 ignore 条目 | `.claude/`、`.mcp.local.example.json`、docs、`.gitignore`；覆盖前会备份已有文件 | `--dry-run`、`--no-write` 或 `dry-run` 跳过写入；`--json` 输出 dry-run plan |
+| `doctor` | 原生环境和 dogfood 诊断 | 不写入 | JSON/no-write 命令 |
+| `audit-hooks` | 检查重复、缺失或高风险 hook 配置 | 不写入 | JSON/no-write 命令 |
+| `verify` | Bash-backed 安装验证和报告生成 | `.token-stack/reports/verify-report.*`；可能创建 `.claude/logs/` | `--no-write` 使用临时报表；`--json 仅覆盖 CLI preflight 错误` |
+| `benchmark` | Bash-backed synthetic 或配置化 baseline/post 任务记录 | `.token-stack/reports/` 和 `.token-stack/fixtures/` | `--no-write`、`--dry-run` 或 `dry-run` 使用临时输出；`--json 仅覆盖 CLI preflight 错误` |
+| `pack-context` | 生成本地 redacted context pack | `.token-stack/context/context-pack.md` 和 manifest | JSON/no-write 命令 |
+| `collect-metrics` | 聚合 report root 下的 metrics JSON | report root 下的 `metrics-collected.json` 和 `.md` | JSON/no-write 命令 |
+| `compare-metrics` | 对比 baseline/post metrics 并生成 rollout 建议 | `.token-stack/reports/metrics-summary.json` 和 `.md` | JSON/no-write 命令；block 建议需要代表性证据和 promotion artifacts |
+| `validate-artifacts` | 校验本地报告、schema 和 case-study artifact 引用 | `.token-stack/reports/artifact-validation.json`、`.md`、`.html` | JSON/no-write 命令 |
+| `analyze-logs` | 汇总本地 hook logs | `.token-stack/reports/log-analysis.json` 和 `.md` | JSON/no-write 命令 |
+| `ingest-usage` | 聚合 usage 和 metric records | `.token-stack/reports/usage-summary.json` 和 `.md` | JSON/no-write 命令 |
+| `events` | 汇总本地 event store | 不写入 | JSON/no-write 命令 |
+| `events record` | 追加本地 rollout note | `.token-stack/events/events.jsonl` | `--no-write` 返回 dry-run event JSON |
+| `preset` | 更新 `.claude/settings.json` 环境默认值 | `.claude/settings.json`，除非 no-write | JSON/no-write 命令 |
+| `tools` | Bash-backed 可选工具检测或显式 opt-in 安装；`install-tools` 是别名 | `.token-stack/reports/install-report.json` 和 `.token-stack/logs/install.log`；可选工具安装必须显式启用且版本 pin 住 | `--dry-run` 跳过写入；`--json 仅覆盖 CLI preflight 错误` |
+| `all` | Bash-backed scaffold 加可选工具检测/安装 | scaffold 文件加 install report/log；remote install 仍需 opt-in 且 pin 版本 | `--dry-run` 跳过写入；`--json 仅覆盖 CLI preflight 错误` |
+| `advanced-unattended` | agent-assisted setup 的高级示例 runner，不是默认入口 | `.token-stack/reports/advanced-unattended-*` 加 scaffold/verify artifacts | `--json 仅覆盖 CLI preflight 错误`；unsafe permission mode 会被拒绝 |
 
 ## 回滚
 
@@ -136,6 +172,7 @@ node .\bin\cts.js audit-hooks --target . --no-write
 node .\bin\cts.js pack-context --target . --json --no-write
 node .\bin\cts.js collect-metrics .token-stack\reports
 node .\bin\cts.js compare-metrics .token-stack\reports
+node .\bin\cts.js validate-artifacts --target . --json --no-write
 ```
 
 `verify`、`benchmark`、`install-tools` 和 `all` 会调用 Bash 脚本。Windows 上请在 Git Bash 或 WSL2 中执行这些命令，并给带空格的路径加引号。

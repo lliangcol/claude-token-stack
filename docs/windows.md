@@ -29,7 +29,10 @@ node .\bin\cts.js audit-hooks --target . --no-write
 node .\bin\cts.js pack-context --target . --json --no-write
 node .\bin\cts.js collect-metrics .token-stack\reports
 node .\bin\cts.js compare-metrics .token-stack\reports
+node .\bin\cts.js validate-artifacts --target . --json --no-write
 ```
+
+`doctor` detects PATH-visible `claude.cmd` wrappers on Windows. If Git Bash can find `claude` but PowerShell cannot, compare both shell PATH values before changing repository settings.
 
 ## RTK
 

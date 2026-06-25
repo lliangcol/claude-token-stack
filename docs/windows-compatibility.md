@@ -18,7 +18,9 @@ node .\bin\cts.js doctor --target "<repo-root>" --no-write
 node .\bin\cts.js audit-hooks --target "<repo-root>" --no-write
 ```
 
-The Node CLI runs `verify`, `benchmark`, `install-tools`, and `all` through Bash scripts. From PowerShell, install Git Bash or use WSL2 for those commands. `scaffold`, `doctor`, `audit-hooks`, `pack-context`, `analyze-logs`, `ingest-usage`, `events`, `preset`, `collect-metrics`, and `compare-metrics` do not require Bash.
+The Node CLI runs `verify`, `benchmark`, `install-tools`, and `all` through Bash scripts. From PowerShell, install Git Bash or use WSL2 for those commands. `scaffold`, `doctor`, `audit-hooks`, `pack-context`, `analyze-logs`, `ingest-usage`, `events`, `preset`, `collect-metrics`, `compare-metrics`, and `validate-artifacts` do not require Bash.
+
+On Windows, `doctor` first checks tools with direct process execution and then uses a `cmd.exe` fallback for the Claude CLI so PATH-visible `claude.cmd` wrappers are reported correctly. If PowerShell `doctor` and Git Bash `verify` disagree about Claude availability, compare the two shell PATH values before changing hooks or project settings.
 
 ## PowerShell Is Not Bash
 

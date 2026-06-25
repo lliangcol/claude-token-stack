@@ -31,8 +31,9 @@ Key paths:
 - `docs/`: public documentation for users and operators.
 - `prompts/`: build, migration, reviewer, release, and agent prompts used to
   maintain the project.
-- `tests/smoke/`: Node smoke tests for hooks, scaffold behavior, helper scripts,
-  and safety constraints.
+- `tests/smoke/`: Node smoke tests for hooks, package surface, package install,
+  CLI output, Windows behavior, scaffold behavior, metrics, artifact
+  validation, README command coverage, schema fixtures, and safety constraints.
 - `benchmarks/`: benchmark runbooks and measurement guidance.
 - `src/`: reserved for future library code. It is intentionally empty in
   `v0.1.0`.
@@ -40,7 +41,12 @@ Key paths:
 
 The package publish surface is controlled by `package.json` `files`. If you add
 a public template, script, or doc that must ship in npm, confirm it is included
-there.
+there. `npm run test:package-surface` runs `npm pack --dry-run --json` and
+checks the actual dry-run file list for required public files and forbidden
+local-only paths. `npm run test:package-install` creates a local tarball in a
+temporary directory, installs it into a source-free consumer project with
+`--offline --ignore-scripts --no-audit --no-fund`, and runs installed `cts`
+commands without writing to the target.
 
 ## Run Tests
 
@@ -56,8 +62,11 @@ Run the full local gate:
 npm test
 ```
 
-`npm test` runs syntax checks, template checks, hook smoke tests, helper-script
-smoke tests, scaffold, and verify.
+`npm test` runs syntax checks, template checks, hook smoke tests,
+package-surface smoke tests, package-install smoke tests, CLI JSON purity smoke
+tests, Windows compatibility smoke tests, scaffold smoke tests, metrics smoke
+tests, artifact-validation smoke tests, README command-matrix smoke tests,
+safety-boundary smoke tests, schema fixture smoke tests, scaffold, and verify.
 
 Focused commands are useful while iterating:
 
@@ -68,7 +77,16 @@ npm run check:python
 npm run check:shell
 npm run check:templates
 npm run test:hooks
-npm run test:helpers
+npm run test:package-surface
+npm run test:package-install
+npm run test:cli-json
+npm run test:windows
+npm run test:scaffold
+npm run test:metrics
+npm run test:artifacts
+npm run test:readme
+npm run test:safety-boundary
+npm run test:schema
 ```
 
 To exercise scaffold and verify directly:
@@ -84,6 +102,7 @@ Benchmark smoke commands:
 node bin/cts.js benchmark synthetic-only --target .
 node bin/cts.js collect-metrics .token-stack/reports
 node bin/cts.js compare-metrics .token-stack/reports
+node bin/cts.js validate-artifacts --target . --json --no-write
 ```
 
 Notes:
@@ -91,7 +110,7 @@ Notes:
 - Node.js 18 or newer is required.
 - Python 3, or the Windows `py` launcher, is required for hook checks.
 - Bash is required for shell-script validation.
-- PowerShell is used by Windows helper validation when available.
+- PowerShell is used by Windows compatibility validation when available.
 - Tests must not require production credentials, secrets, or a logged-in Claude
   session.
 
@@ -116,6 +135,10 @@ When changing docs:
   opt-in behavior.
 - Do not add `curl | sh` examples.
 - Do not show `dangerously-skip-permissions` as a recommended workflow.
+- Keep `tests/smoke/safety-boundary.test.js` checks green when
+  changing executable docs or installer scripts.
+- Keep `tests/smoke/readme-command-matrix.test.js` green when changing CLI
+  command names, write behavior, JSON support, or failure codes.
 - Keep Headroom disabled by default unless the governance policy changes.
 - Update `README.md` when a change affects the main user path.
 - Update `CHANGELOG.md` when a change is release-facing.
@@ -148,8 +171,10 @@ When changing templates:
 - Preserve idempotency: running scaffold twice should not duplicate token hooks.
 - Keep remote installs opt-in through explicit environment variables.
 
-Template changes often need smoke-test updates in
-`tests/smoke/helper-scripts.test.js`.
+Template changes often need smoke-test updates in `tests/smoke/scaffold.test.js`
+and, when the published package surface changes,
+`tests/smoke/package-surface.test.js` or
+`tests/smoke/package-install.test.js`.
 
 ## Change Hooks
 
@@ -186,7 +211,8 @@ npm run test:hooks
 For scaffold or settings changes, also run:
 
 ```bash
-npm run test:helpers
+npm run test:scaffold
+npm run test:package-surface
 node bin/cts.js scaffold --target .tmp/verify-fixture
 node bin/cts.js verify --target .tmp/verify-fixture
 ```

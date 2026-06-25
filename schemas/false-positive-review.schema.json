@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/lliangcol/claude-token-stack/schemas/false-positive-review.schema.json",
+  "title": "Claude Token Stack False Positive Review",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "reviewed_at",
+    "reviewed_log_paths",
+    "reviewed_entries",
+    "true_positive_count",
+    "false_positive_count",
+    "unclear_count"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 1
+    },
+    "reviewed_at": {
+      "type": "string",
+      "minLength": 1
+    },
+    "reviewed_log_paths": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "reviewed_entries": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "true_positive_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "false_positive_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "unclear_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "reviewer": {
+      "type": "string"
+    },
+    "notes": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": true
+}

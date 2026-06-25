@@ -39,8 +39,9 @@ Synthetic benchmark summary:
 
 ```text
 recommend_enter_block: false
+evidence_types: synthetic
 evidence_modes: synthetic-only
-recommendation_note: synthetic-only evidence cannot recommend block mode
+recommendation_note: synthetic evidence cannot recommend block mode
 ```
 
 This demo proves wiring only: policy, hooks, logs, reports, benchmark commands, and rollback are connected. It is not proof of real token or cost savings. See [docs/demo.md](docs/demo.md) and the copyable demo repositories under [examples/](examples/README.md).
@@ -89,6 +90,9 @@ Evidence files commonly include:
 - `.token-stack/reports/post/*.json`
 - `.token-stack/reports/metrics-summary.json`
 - `.token-stack/reports/metrics-summary.md`
+- `.token-stack/reports/false-positive-review.json`
+- `.claude/logs/token-guard.log`
+- `.claude/logs/cbm-gate.log`
 
 See [docs/case-studies/synthetic-demo.md](docs/case-studies/synthetic-demo.md) for the case-study format used by this RC.
 
@@ -163,11 +167,12 @@ Defaults in `templates/.claude/settings.json` follow the same posture:
 Consider blocking only after:
 
 - hook smoke tests pass in warn and block modes;
+- `verify-report.json` exists for the target repo;
 - `metrics-summary.json` recommends entering block mode;
 - post-adoption tasks still pass;
 - raw large-output events are not worse than baseline;
 - cost or token metrics are not worse than baseline;
-- false positives in `.claude/logs/token-guard.log` and `.claude/logs/cbm-gate.log` have been reviewed.
+- false positives in `.claude/logs/token-guard.log` and `.claude/logs/cbm-gate.log` have been reviewed and recorded in valid `.token-stack/reports/false-positive-review.json`.
 
 A conservative path is to switch `TOKEN_GUARD_MODE=block` first, keep `CBM_GATE_MODE=warn`, and evaluate broad `Grep`/`Glob` blocking later. Test and build commands remain warn-only advisories in the default hook even when block mode is enabled.
 
@@ -194,7 +199,10 @@ Synthetic baseline/post workflow:
 node bin/cts.js benchmark synthetic-only --target .
 node bin/cts.js collect-metrics .token-stack/reports
 node bin/cts.js compare-metrics .token-stack/reports
+node bin/cts.js validate-artifacts --target . --json --no-write
 ```
+
+`validate-artifacts --json --no-write` keeps the validation payload on stdout and writes nothing. Without `--no-write`, it writes local `.token-stack/reports/artifact-validation.json`, `.token-stack/reports/artifact-validation.md`, and `.token-stack/reports/artifact-validation.html`; the HTML report is static and local.
 
 Context, log, usage, and local event helpers:
 
@@ -206,7 +214,39 @@ node bin/cts.js events record --target . --type rollout --message "warn-mode smo
 node bin/cts.js preset --target . --name balanced --json --no-write
 ```
 
-The benchmark workflow is for adoption decisions. It can read `.token-stack/benchmark.config.json`; see [docs/operations.md](docs/operations.md) and [docs/examples/benchmark.config.example.json](docs/examples/benchmark.config.example.json). It should not be turned into a public savings claim without representative baseline/post evidence.
+## Command Behavior
+
+Most commands accept `--target DIR`. Missing or non-directory targets exit `2`
+with `target_missing` or `target_not_directory`. Missing runtimes exit `2` with
+`python_missing` for Python-backed commands or `bash_missing` for Bash-backed
+commands. In `--json` preflight failures, JSON is written to stdout and stderr
+stays empty.
+
+JSON/no-write commands provide full stdout JSON payloads. For Bash-backed
+commands, `--json only covers CLI preflight errors`; the script output remains
+human-readable.
+
+| Command | Primary use | Writes by default | JSON/no-write behavior |
+| --- | --- | --- | --- |
+| `scaffold` | Install repo-local policy, hooks, docs, and ignore entries | `.claude/`, `.mcp.local.example.json`, docs, `.gitignore`; existing files are backed up before overwrite | `--dry-run`, `--no-write`, or `dry-run` skips writes; `--json` emits a dry-run plan |
+| `doctor` | Native environment and dogfood diagnostics | None | JSON/no-write command |
+| `audit-hooks` | Check duplicate, missing, or risky hook configuration | None | JSON/no-write command |
+| `verify` | Bash-backed install verification and report generation | `.token-stack/reports/verify-report.*`; may create `.claude/logs/` | `--no-write` uses temp reports; `--json only covers CLI preflight errors` |
+| `benchmark` | Bash-backed synthetic or configured baseline/post task records | `.token-stack/reports/` and `.token-stack/fixtures/` | `--no-write`, `--dry-run`, or `dry-run` uses temp outputs; `--json only covers CLI preflight errors` |
+| `pack-context` | Build a redacted local context pack | `.token-stack/context/context-pack.md` and manifest | JSON/no-write command |
+| `collect-metrics` | Aggregate metric JSON under a report root | `metrics-collected.json` and `.md` in the report root | JSON/no-write command |
+| `compare-metrics` | Compare baseline/post metrics and produce rollout recommendation | `.token-stack/reports/metrics-summary.json` and `.md` | JSON/no-write command; block recommendation requires representative evidence and promotion artifacts |
+| `validate-artifacts` | Validate local reports, schemas, and case-study artifact references | `.token-stack/reports/artifact-validation.json`, `.md`, `.html` | JSON/no-write command |
+| `analyze-logs` | Summarize local hook logs | `.token-stack/reports/log-analysis.json` and `.md` | JSON/no-write command |
+| `ingest-usage` | Aggregate usage and metric records | `.token-stack/reports/usage-summary.json` and `.md` | JSON/no-write command |
+| `events` | Summarize the local event store | None | JSON/no-write command |
+| `events record` | Append a local rollout note | `.token-stack/events/events.jsonl` | `--no-write` returns a dry-run event JSON |
+| `preset` | Update `.claude/settings.json` environment defaults | `.claude/settings.json`, unless no-write | JSON/no-write command |
+| `tools` | Bash-backed optional tool detection or opt-in install; `install-tools` is an alias | `.token-stack/reports/install-report.json` and `.token-stack/logs/install.log`; optional tool installs only when explicitly enabled and pinned | `--dry-run` skips writes; `--json only covers CLI preflight errors` |
+| `all` | Bash-backed scaffold plus optional tool detection/install | Scaffold files plus install report/log; remote installs remain opt-in and pinned | `--dry-run` skips writes; `--json only covers CLI preflight errors` |
+| `advanced-unattended` | Advanced example runner for agent-assisted setup, not the default entrypoint | `.token-stack/reports/advanced-unattended-*` plus scaffold/verify artifacts | `--json only covers CLI preflight errors`; unsafe permission modes are refused |
+
+The benchmark workflow is for adoption decisions. It can read `.token-stack/benchmark.config.json`; see [docs/operations.md](docs/operations.md) and [docs/examples/benchmark.config.example.json](docs/examples/benchmark.config.example.json). It should not be turned into a public savings claim without representative baseline/post evidence labeled with `evidence_type: real` or `mixed`, plus verify report, hook logs, valid structured false-positive review evidence, and clean local artifact validation.
 
 ## Cross-Platform Notes
 
@@ -218,7 +258,7 @@ bash bin/verify-claude-token-stack.sh
 bash bin/run-token-benchmark.sh synthetic-only
 ```
 
-Windows users should prefer the Node CLI from PowerShell for scaffold, doctor, audit-hooks, pack-context, analyze-logs, ingest-usage, collect-metrics, compare-metrics, and direct hook smoke tests:
+Windows users should prefer the Node CLI from PowerShell for scaffold, doctor, audit-hooks, pack-context, analyze-logs, ingest-usage, collect-metrics, compare-metrics, validate-artifacts, and direct hook smoke tests:
 
 ```powershell
 node .\bin\cts.js scaffold --target .
