@@ -31,7 +31,7 @@ if tool_name != "Bash" or not cmd:
     sys.exit(0)
 
 blocking_rules = [
-    (r"(^|[;&|]\s*)(cat|less|more|head|tail|sed|awk|grep)\b[^;&|]*(\.env(\.|$)|\.pem\b|\.key\b|id_rsa|secret|private_key)", "Avoid reading secret-like files through shell commands. Use synthetic fixtures or redact data first."),
+    (r"(^|[;&|]\s*)(cat|less|more|head|tail|sed|awk|grep|type|gc|get-content)\b[^;&|]*(\.env(\.|$)|\.pem\b|\.key\b|id_rsa|secret|private_key)", "Avoid reading secret-like files through shell commands. Use synthetic fixtures or redact data first."),
     (r"(^|[;&|]\s*)tree(\s|$)", "Avoid raw tree. Use targeted rg --files with a narrow path."),
     (r"(^|[;&|]\s*)ls\b[^;&|]*(^|\s)-R(\s|$)", "Avoid ls -R. Use targeted rg --files with a narrow path."),
     (r"(^|[;&|]\s*)grep\b[^;&|]*(^|\s)-R(\s|$)", "Avoid grep -R. Use Codebase Memory MCP first, then targeted rg."),

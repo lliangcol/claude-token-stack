@@ -18,6 +18,34 @@ const manifestPath = outPath.replace(/\.md$/i, ".manifest.json");
 const jsonOutput = args.includes("--json");
 const noWrite = args.includes("--no-write") || args.includes("--dry-run") || args.includes("dry-run");
 
+function printJson(value) {
+  console.log(JSON.stringify(value, null, 2));
+}
+
+function fail(code, message, extra = {}) {
+  if (jsonOutput) {
+    printJson({
+      schema_version: 1,
+      command: "pack-context",
+      target,
+      error: {
+        code,
+        message,
+        ...extra
+      }
+    });
+  } else {
+    console.error(message);
+  }
+  process.exit(2);
+}
+
+if (!Number.isFinite(budget) || budget <= 0) {
+  fail("invalid_budget", `--budget must be a positive number, got: ${option("--budget", "60000")}`, {
+    budget: option("--budget", "60000")
+  });
+}
+
 const TEXT_EXTENSIONS = new Set([
   ".js", ".jsx", ".ts", ".tsx", ".py", ".go", ".rs", ".java", ".kt", ".rb", ".php", ".cs",
   ".cpp", ".c", ".h", ".hpp", ".swift", ".scala", ".sql", ".json", ".md", ".yml", ".yaml",
@@ -25,7 +53,10 @@ const TEXT_EXTENSIONS = new Set([
 ]);
 const IGNORE_PARTS = new Set([".git", "node_modules", ".token-stack", ".claude/logs", "dist", "build", "coverage", "__pycache__"]);
 const SECRET_PATTERNS = [
-  [/([A-Za-z_][A-Za-z0-9_]*(?:TOKEN|SECRET|PASSWORD|PRIVATE_KEY|API_KEY)[A-Za-z0-9_]*\s*[:=]\s*)["']?[^"'\s]+/gi, "$1[REDACTED]"],
+  [
+    /\b([A-Za-z_][A-Za-z0-9_]*)(\s*[:=]\s*)["']?[^"'\s]+/g,
+    (match, key, separator) => /TOKEN|SECRET|PASSWORD|PRIVATE_KEY|API_KEY/i.test(key) ? `${key}${separator}[REDACTED]` : match
+  ],
   [/(-----BEGIN [A-Z ]*PRIVATE KEY-----)[\s\S]*?(-----END [A-Z ]*PRIVATE KEY-----)/g, "$1\n[REDACTED]\n$2"]
 ];
 

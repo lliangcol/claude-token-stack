@@ -6,7 +6,7 @@ const { spawnSync } = require("child_process");
 const root = path.resolve(__dirname, "..");
 const args = process.argv.slice(2);
 const command = args[0] || "help";
-const dryRun = args.includes("dry-run") || args.includes("--dry-run");
+const dryRun = args.includes("dry-run") || args.includes("--dry-run") || args.includes("--no-write");
 const jsonOutput = args.includes("--json");
 const tokenHookMatchers = {
   Bash: "bash-token-guard.py",

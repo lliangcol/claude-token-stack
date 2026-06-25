@@ -293,6 +293,57 @@ assert.ok(
   "collect-metrics --no-write should not create metrics-collected.md"
 );
 
+const invalidBudgetResult = spawnSync(
+  process.execPath,
+  [cliPath, "pack-context", "--target", repoRoot, "--budget", "abc", "--json", "--no-write"],
+  { encoding: "utf8" }
+);
+assert.strictEqual(invalidBudgetResult.status, 2, "pack-context invalid budget should fail");
+assert.strictEqual(invalidBudgetResult.stderr, "", "pack-context --json invalid budget should keep stderr clean");
+const invalidBudgetPayload = JSON.parse(invalidBudgetResult.stdout);
+assert.strictEqual(invalidBudgetPayload.command, "pack-context");
+assert.strictEqual(invalidBudgetPayload.error.code, "invalid_budget");
+
+const zeroBudgetResult = spawnSync(
+  process.execPath,
+  [cliPath, "pack-context", "--target", repoRoot, "--budget", "0", "--json", "--no-write"],
+  { encoding: "utf8" }
+);
+assert.strictEqual(zeroBudgetResult.status, 2, "pack-context zero budget should fail");
+assert.strictEqual(JSON.parse(zeroBudgetResult.stdout).error.code, "invalid_budget");
+
+const redactionTarget = path.join(preflightTempRoot, "redaction target");
+fs.mkdirSync(redactionTarget, { recursive: true });
+fs.writeFileSync(
+  path.join(redactionTarget, "secrets.txt"),
+  [
+    "TOKEN=tok123",
+    "SECRET=sec123",
+    "PASSWORD=pass123",
+    "PRIVATE_KEY=key123",
+    "API_KEY=api123",
+    "OPENAI_API_KEY=sk-test-123",
+    "DB_PASSWORD=dbpass",
+    "password = spacedpass"
+  ].join("\n") + "\n",
+  "utf8"
+);
+const redactionResult = spawnSync(
+  process.execPath,
+  [cliPath, "pack-context", "--target", redactionTarget, "--budget", "5000", "--no-write"],
+  { encoding: "utf8" }
+);
+assert.strictEqual(
+  redactionResult.status,
+  0,
+  `pack-context redaction smoke should pass\nstdout:\n${redactionResult.stdout}\nstderr:\n${redactionResult.stderr}`
+);
+for (const secretValue of ["tok123", "sec123", "pass123", "key123", "api123", "sk-test-123", "dbpass", "spacedpass"]) {
+  assert.ok(!redactionResult.stdout.includes(secretValue), `pack-context should redact ${secretValue}`);
+}
+assert.match(redactionResult.stdout, /TOKEN=\[REDACTED\]/);
+assert.match(redactionResult.stdout, /password = \[REDACTED\]/);
+
 const compareMetricsResult = spawnSync(
   process.execPath,
   [

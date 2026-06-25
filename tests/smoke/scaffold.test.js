@@ -209,6 +209,22 @@ assert.ok(
   "dry-run should report invalid settings JSON risk"
 );
 
+const noWriteTarget = path.join(tempRoot, "scaffold no write target");
+fs.mkdirSync(noWriteTarget, { recursive: true });
+const noWriteScaffold = spawnSync(
+  process.execPath,
+  [path.join(repoRoot, "bin", "cts.js"), "scaffold", "--target", noWriteTarget, "--no-write"],
+  { encoding: "utf8" }
+);
+assert.strictEqual(
+  noWriteScaffold.status,
+  0,
+  `scaffold --no-write failed\nstdout:\n${noWriteScaffold.stdout}\nstderr:\n${noWriteScaffold.stderr}`
+);
+for (const rel of [".claude/settings.json", ".gitignore", ".mcp.local.example.json", "docs/claude-token-stack.md"]) {
+  assert.ok(!fs.existsSync(path.join(noWriteTarget, rel)), `scaffold --no-write should not create ${rel}`);
+}
+
 const verifyRiskTarget = path.join(repoRoot, ".tmp", `scaffold-verify-risk-${Date.now()}`);
 const verifyRiskScaffold = spawnSync(
   process.execPath,

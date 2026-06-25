@@ -74,6 +74,18 @@ assertStatus(
   2
 );
 
+for (const command of ["Get-Content .env", "type .env", "gc .env"]) {
+  assertStatus(
+    `block Windows secret-like shell read: ${command}`,
+    runHook(
+      bashGuard,
+      { tool_name: "Bash", tool_input: { command } },
+      { TOKEN_GUARD_MODE: "block" }
+    ),
+    2
+  );
+}
+
 assertStatus(
   "block ls -R",
   runHook(
