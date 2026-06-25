@@ -368,6 +368,9 @@ for (const [commandName, expectedCode] of [
   ["compare-metrics", "python_missing"],
   ["verify", "bash_missing"],
   ["benchmark", "bash_missing"],
+  ["tools", "bash_missing"],
+  ["all", "bash_missing"],
+  ["advanced-unattended", "bash_missing"],
 ]) {
   const result = spawnSync(
     process.execPath,
