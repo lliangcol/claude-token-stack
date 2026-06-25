@@ -34,6 +34,26 @@ function fencedCodeLines(markdown) {
 
 const unsafePipeShellPattern = /\b(?:curl|wget)\b[^\n|]*\|\s*(?:sh|bash)\b/i;
 const dangerousPermissionBypassPattern = /\bdangerously-skip-permissions\b/i;
+const requiredToolDocBoundaries = [
+  [
+    "docs/tools/headroom.md",
+    [
+      "explicit proxy experiment",
+      "ENABLE_HEADROOM=1",
+      "reviewed what request metadata and content could pass through the proxy",
+      "Keep Headroom disabled for normal scaffold, verification, benchmark, and demo flows.",
+    ],
+  ],
+  [
+    "docs/tools/codebase-memory-mcp.md",
+    [
+      "repository-local index by default",
+      "Do not configure hidden remote indexing, telemetry, or source upload",
+      "owner-approved data path",
+      "Keep one primary code discovery MCP per repository",
+    ],
+  ],
+];
 
 const markdownSafetyFiles = [
   "README.md",
@@ -63,6 +83,13 @@ for (const filePath of walkFiles(path.join(repoRoot, "bin"), (candidate) => /\.(
   const body = fs.readFileSync(filePath, "utf8");
   assert.ok(!unsafePipeShellPattern.test(body), `${rel} must not execute curl/wget piped into a shell`);
   assert.ok(!dangerousPermissionBypassPattern.test(body), `${rel} must not use dangerously-skip-permissions`);
+}
+
+for (const [rel, requiredPhrases] of requiredToolDocBoundaries) {
+  const body = fs.readFileSync(path.join(repoRoot, rel), "utf8");
+  for (const phrase of requiredPhrases) {
+    assert.ok(body.includes(phrase), `${rel} should preserve local-first tool boundary: ${phrase}`);
+  }
 }
 
 console.log("safety boundary smoke tests passed");
