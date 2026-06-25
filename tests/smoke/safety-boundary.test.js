@@ -53,6 +53,18 @@ const requiredToolDocBoundaries = [
       "Keep one primary code discovery MCP per repository",
     ],
   ],
+  [
+    "docs/release/v0.1.0-rc-checklist.md",
+    [
+      "Do not mark these items as completed unless a maintainer has performed them in GitHub or the target channel.",
+      "npm test",
+      "npm pack --dry-run",
+      "synthetic/demo evidence is wiring proof, not real savings proof",
+      "no npm publish is required for this RC checklist",
+      "Not a fixed savings claim. Evidence first, block later.",
+      "real savings should come from baseline/post case reports",
+    ],
+  ],
 ];
 
 const markdownSafetyFiles = [
