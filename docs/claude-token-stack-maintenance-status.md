@@ -63,15 +63,21 @@ The default posture is offline/local-first, warn-first, no default network acces
 ## Current Baseline Snapshot
 
 - Branch: `main...origin/main`.
-- Worktree: already dirty before this maintenance pass, with many modified CLI, docs, schema, and smoke-test files plus new validation/schema files.
-- `npm run check:native`: passed on 2026-06-25 before this status file was added.
+- Worktree: clean at the start of the second maintenance pass.
+- `npm run check:native`: passed on 2026-06-25 after the first maintenance pass.
+- `npm test`: passed on 2026-06-25 after the first maintenance pass.
+- `npm pack --dry-run`: passed on 2026-06-25 after the first maintenance pass.
+- Second pass targeted validation on 2026-06-25: `node tests/smoke/cli-json-purity.test.js` passed.
+- Second pass full validation on 2026-06-25: `npm run check:native`, `npm test`, and `npm pack --dry-run` passed.
+- Third pass package surface decision on 2026-06-25: maintenance status remains repo-only; package surface smoke now asserts it is absent from npm pack output.
+- Third pass validation on 2026-06-25: `node tests/smoke/package-surface.test.js`, `node tests/smoke/cli-json-purity.test.js`, `node tests/smoke/maintenance-status.test.js`, `npm run check:native`, `npm test`, and `npm pack --dry-run` passed.
 - Native environment observed by `doctor`: Windows, Node v24.16.0, npm 11.13.0, Python 3.12.13, Bash 5.3.9, Claude Code 2.1.173.
 - `doctor --json --no-write`: 27 PASS.
 - `audit-hooks --json --no-write`: 10 PASS.
 
 ## Known Risks
 
-- The broad dirty worktree means every maintenance pass must avoid reverting or overwriting unrelated edits.
+- Even with a clean worktree, maintenance passes should stay small and avoid rewriting unrelated docs or fixtures.
 - Bash-backed commands only reserve `--json` for CLI preflight failures; docs and tests must keep this distinction explicit.
 - Block-mode wording can drift into overclaiming unless docs keep promotion evidence requirements visible.
 - Windows/Git Bash/WSL2 path and quoting behavior remains a high-risk compatibility surface.
@@ -79,14 +85,14 @@ The default posture is offline/local-first, warn-first, no default network acces
 
 ## Backlog Candidates
 
-1. Add a smoke check that this maintenance status file exists and keeps the safety/evidence boundary, validation commands, and next-candidate workflow visible.
-2. Extend no-write/JSON purity coverage around recently added validation and observability commands, especially stderr cleanliness and no artifact creation.
-3. Re-run package whitelist review after each new docs/schema/bin addition and keep release-management/internal files out of npm output.
+1. Review MCP/tool docs for duplicate-context warnings and explicit local-only data boundaries, especially Headroom and codebase-memory-mcp notes.
+2. Extend no-write/JSON purity coverage around remaining Bash-backed preflight cases if new Bash commands are added.
+3. Keep README/README_zh-CN command behavior tables synchronized when new commands or write modes are added.
 
 ## Selected Work Package
 
-Implement backlog candidate 1 in this pass. This is the smallest high-leverage change because it turns the new state-file workflow into an executable smoke gate without changing CLI behavior, schemas, installer behavior, or public claims.
+Implement the third pass package whitelist review by keeping `docs/claude-token-stack-maintenance-status.md` repo-only and asserting that decision in `tests/smoke/package-surface.test.js`. This avoids shipping maintainer workflow state to npm users while preserving the user-facing docs allowlist.
 
 ## Next Candidate
 
-After this pass, prioritize no-write/JSON purity coverage for `validate-artifacts`, `collect-metrics`, `compare-metrics`, and Bash-backed preflight boundaries.
+After this pass, review MCP/tool docs for duplicate-context warnings and explicit local-only data boundaries, especially Headroom and codebase-memory-mcp notes.

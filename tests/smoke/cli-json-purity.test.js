@@ -14,12 +14,15 @@ const eventTarget = path.join(preflightTempRoot, "event target");
 const presetTarget = path.join(preflightTempRoot, "preset target");
 const presetMissingSettingsTarget = path.join(preflightTempRoot, "preset missing settings");
 const observabilityTarget = path.join(preflightTempRoot, "observability target");
+const metricsTarget = path.join(preflightTempRoot, "metrics target");
 fs.writeFileSync(fileTarget, "not a directory\n", "utf8");
 fs.mkdirSync(eventTarget, { recursive: true });
 fs.mkdirSync(path.join(presetTarget, ".claude"), { recursive: true });
 fs.mkdirSync(presetMissingSettingsTarget, { recursive: true });
 fs.mkdirSync(path.join(observabilityTarget, ".claude", "logs"), { recursive: true });
 fs.mkdirSync(path.join(observabilityTarget, ".token-stack", "reports"), { recursive: true });
+fs.mkdirSync(path.join(metricsTarget, ".token-stack", "reports", "baseline"), { recursive: true });
+fs.mkdirSync(path.join(metricsTarget, ".token-stack", "reports", "post"), { recursive: true });
 const presetSettingsPath = path.join(presetTarget, ".claude", "settings.json");
 const presetOriginalSettings = `${JSON.stringify({
   env: {
@@ -51,6 +54,27 @@ fs.writeFileSync(
   })}\n`,
   "utf8"
 );
+for (const phase of ["baseline", "post"]) {
+  fs.writeFileSync(
+    path.join(metricsTarget, ".token-stack", "reports", phase, "smoke-task.json"),
+    `${JSON.stringify({
+      schema_version: 1,
+      phase,
+      task: "smoke-task",
+      mode: "synthetic-only",
+      evidence_type: "synthetic",
+      task_success: true,
+      metrics: {
+        input_tokens: phase === "baseline" ? 100 : 80,
+        output_tokens: phase === "baseline" ? 20 : 18,
+        raw_large_output_events: phase === "baseline" ? 1 : 0,
+        blocked_commands: phase === "baseline" ? 0 : 1,
+        cost_usd: phase === "baseline" ? 1 : 0.8
+      }
+    })}\n`,
+    "utf8"
+  );
+}
 const envWithoutPath = Object.assign({}, process.env, { PATH: "", Path: "" });
 
 const helpResult = spawnSync(process.execPath, [cliPath, "help"], { encoding: "utf8" });
@@ -237,6 +261,72 @@ assert.ok(
   "ingest-usage --no-write should not create usage-summary.md"
 );
 
+const collectMetricsResult = spawnSync(
+  process.execPath,
+  [
+    cliPath,
+    "collect-metrics",
+    "--target",
+    metricsTarget,
+    ".token-stack/reports",
+    "--json",
+    "--no-write"
+  ],
+  { encoding: "utf8" }
+);
+assert.strictEqual(
+  collectMetricsResult.status,
+  0,
+  `collect-metrics --json --no-write should pass\nstdout:\n${collectMetricsResult.stdout}\nstderr:\n${collectMetricsResult.stderr}`
+);
+assert.strictEqual(collectMetricsResult.stderr, "", "collect-metrics --json --no-write should keep stderr clean");
+const collectMetricsPayload = JSON.parse(collectMetricsResult.stdout);
+assert.strictEqual(collectMetricsPayload.root.replace(/\\/g, "/"), ".token-stack/reports");
+assert.strictEqual(collectMetricsPayload.files.length, 2);
+assert.strictEqual(collectMetricsPayload.totals.input_tokens, 180);
+assert.ok(
+  !fs.existsSync(path.join(metricsTarget, ".token-stack", "reports", "metrics-collected.json")),
+  "collect-metrics --no-write should not create metrics-collected.json"
+);
+assert.ok(
+  !fs.existsSync(path.join(metricsTarget, ".token-stack", "reports", "metrics-collected.md")),
+  "collect-metrics --no-write should not create metrics-collected.md"
+);
+
+const compareMetricsResult = spawnSync(
+  process.execPath,
+  [
+    cliPath,
+    "compare-metrics",
+    "--target",
+    metricsTarget,
+    ".token-stack/reports",
+    "--json",
+    "--no-write"
+  ],
+  { encoding: "utf8" }
+);
+assert.strictEqual(
+  compareMetricsResult.status,
+  0,
+  `compare-metrics --json --no-write should pass\nstdout:\n${compareMetricsResult.stdout}\nstderr:\n${compareMetricsResult.stderr}`
+);
+assert.strictEqual(compareMetricsResult.stderr, "", "compare-metrics --json --no-write should keep stderr clean");
+const compareMetricsPayload = JSON.parse(compareMetricsResult.stdout);
+assert.strictEqual(compareMetricsPayload.root.replace(/\\/g, "/"), ".token-stack/reports");
+assert.deepStrictEqual(compareMetricsPayload.evidence_types, ["synthetic"]);
+assert.strictEqual(compareMetricsPayload.recommend_enter_block, false);
+assert.strictEqual(compareMetricsPayload.totals.baseline.input_tokens, 100);
+assert.strictEqual(compareMetricsPayload.totals.post.input_tokens, 80);
+assert.ok(
+  !fs.existsSync(path.join(metricsTarget, ".token-stack", "reports", "metrics-summary.json")),
+  "compare-metrics --no-write should not create metrics-summary.json"
+);
+assert.ok(
+  !fs.existsSync(path.join(metricsTarget, ".token-stack", "reports", "metrics-summary.md")),
+  "compare-metrics --no-write should not create metrics-summary.md"
+);
+
 for (const commandName of ["doctor", "collect-metrics"]) {
   for (const [targetPath, expectedCode] of [
     [missingTarget, "target_missing"],
@@ -275,7 +365,9 @@ for (const [targetPath, expectedCode] of [
 
 for (const [commandName, expectedCode] of [
   ["collect-metrics", "python_missing"],
+  ["compare-metrics", "python_missing"],
   ["verify", "bash_missing"],
+  ["benchmark", "bash_missing"],
 ]) {
   const result = spawnSync(
     process.execPath,

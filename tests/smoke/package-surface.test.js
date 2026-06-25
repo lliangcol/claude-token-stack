@@ -34,6 +34,10 @@ assert.deepStrictEqual(packageJson.bugs, {
 assert.ok(packageJson.files.includes("templates/.mcp.local.example.json"), "package should include local MCP template");
 assert.ok(!packageJson.files.includes("docs/**/*.md"), "package docs surface should be explicitly allowlisted");
 assert.ok(
+  !packageJson.files.includes("docs/claude-token-stack-maintenance-status.md"),
+  "maintenance status is repo-only and should not be included in the npm package allowlist"
+);
+assert.ok(
   !packageJson.files.some((entry) => entry.startsWith("docs/release/")),
   "GitHub release-management docs should stay out of the npm package"
 );
@@ -92,7 +96,9 @@ for (const forbiddenPrefix of [
 }
 for (const forbiddenPath of [
   "package-lock.json",
+  "docs/claude-token-stack-maintenance-status.md",
   "tests/smoke/package-surface.test.js",
+  "tests/smoke/maintenance-status.test.js",
   ".env",
 ]) {
   assert.ok(!packedPaths.has(forbiddenPath), `npm pack output should not include ${forbiddenPath}`);
