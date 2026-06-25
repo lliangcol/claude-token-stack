@@ -60,4 +60,12 @@ for (const factSource of [
   assert.ok(status.includes(factSource), `maintenance status should name fact source: ${factSource}`);
 }
 
+for (const recentGuard of [
+  "package surface smoke now expands the `package.json` files allowlist and compares it with real `npm pack --dry-run --json` output",
+  "release checklist safety wording is protected by `tests/smoke/safety-boundary.test.js`",
+  "`docs/release/` remains repo-only and absent from the npm package",
+]) {
+  assert.ok(status.includes(recentGuard), `maintenance status should record recent guard: ${recentGuard}`);
+}
+
 console.log("maintenance status smoke tests passed");

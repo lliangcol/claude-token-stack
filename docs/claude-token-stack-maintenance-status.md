@@ -73,6 +73,8 @@ The default posture is offline/local-first, warn-first, no default network acces
 - Third pass validation on 2026-06-25: `node tests/smoke/package-surface.test.js`, `node tests/smoke/cli-json-purity.test.js`, `node tests/smoke/maintenance-status.test.js`, `npm run check:native`, `npm test`, and `npm pack --dry-run` passed.
 - Fourth pass MCP/tool doc boundary on 2026-06-25: Headroom and codebase-memory-mcp docs now preserve explicit opt-in, local-first, no hidden upload, and duplicate-context boundaries through `tests/smoke/safety-boundary.test.js`.
 - Fifth pass README command sync on 2026-06-25: English and Chinese command behavior tables now have smoke coverage for row order and selected write/no-write markers.
+- Sixth pass package surface guard on 2026-06-25: package surface smoke now expands the `package.json` files allowlist and compares it with real `npm pack --dry-run --json` output; `docs/release/` remains repo-only and absent from the npm package.
+- Seventh pass release checklist guard on 2026-06-25: release checklist safety wording is protected by `tests/smoke/safety-boundary.test.js`, including manual-completion, synthetic-only evidence, no npm publish, and no fixed savings claim boundaries.
 - Native environment observed by `doctor`: Windows, Node v24.16.0, npm 11.13.0, Python 3.12.13, Bash 5.3.9, Claude Code 2.1.173.
 - `doctor --json --no-write`: 27 PASS.
 - `audit-hooks --json --no-write`: 10 PASS.
@@ -93,8 +95,8 @@ The default posture is offline/local-first, warn-first, no default network acces
 
 ## Selected Work Package
 
-Implement this pass by strengthening `tests/smoke/readme-command-matrix.test.js` so the English and Chinese command behavior tables must keep the same command rows in the same order and preserve selected write/no-write markers for scaffold, verify, benchmark, validate-artifacts, and tools. This is a narrow documentation guard and does not change CLI behavior, schemas, package contents, or installer behavior.
+Refresh this maintenance status so it reflects the latest verified package allowlist and release checklist safety guards. This is a repo-status documentation and smoke alignment pass; it does not change CLI behavior, schemas, package contents, installer behavior, or release checklist content.
 
 ## Next Candidate
 
-After this pass, prioritize remaining Bash-backed preflight coverage only when new Bash-backed commands or options are added; otherwise re-check package whitelist when user-facing docs, schemas, or bin entrypoints change.
+After this pass, prioritize remaining Bash-backed preflight coverage only when new Bash-backed commands or options are added; otherwise keep package whitelist, release checklist, and maintenance-status smoke aligned when user-facing docs, schemas, or bin entrypoints change.
