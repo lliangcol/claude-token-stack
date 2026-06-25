@@ -6,6 +6,42 @@ const { spawnSync } = require("child_process");
 
 const repoRoot = path.resolve(__dirname, "..", "..");
 
+function toPackagePath(filePath) {
+  return path.relative(repoRoot, filePath).split(path.sep).join("/");
+}
+
+function expandPackageFileEntry(entry) {
+  if (!entry.includes("*")) {
+    const absolutePath = path.join(repoRoot, entry);
+    assert.ok(fs.existsSync(absolutePath), `package files entry should exist: ${entry}`);
+    return [entry];
+  }
+
+  assert.ok(
+    entry.indexOf("*") === entry.lastIndexOf("*") && !entry.includes("**"),
+    `package files entry should use only supported single-level globs: ${entry}`
+  );
+
+  const directory = path.dirname(entry);
+  const basenamePattern = path.basename(entry);
+  const escapedPattern = basenamePattern
+    .split("*")
+    .map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+    .join(".*");
+  const matcher = new RegExp(`^${escapedPattern}$`);
+  const absoluteDirectory = path.join(repoRoot, directory);
+
+  assert.ok(fs.existsSync(absoluteDirectory), `package files glob directory should exist: ${directory}`);
+  const matches = fs
+    .readdirSync(absoluteDirectory, { withFileTypes: true })
+    .filter((entry) => entry.isFile() && matcher.test(entry.name))
+    .map((entry) => `${directory}/${entry.name}`)
+    .sort();
+
+  assert.ok(matches.length > 0, `package files glob should match at least one file: ${entry}`);
+  return matches;
+}
+
 const shellScript = fs.readFileSync(path.join(repoRoot, "bin", "install-claude-token-stack.sh"), "utf8");
 assert.ok(!/sh\s+"\$tmp"/.test(shellScript), "remote shell installer must not execute downloaded temp scripts");
 assert.match(shellScript, /downloaded for audit only/, "remote shell installer should report audit-only behavior");
@@ -65,6 +101,17 @@ assert.strictEqual(
 const packJson = JSON.parse(packResult.stdout);
 assert.ok(Array.isArray(packJson) && packJson.length === 1, "npm pack JSON should contain one package entry");
 const packedPaths = new Set(packJson[0].files.map((entry) => entry.path));
+const expectedPackedPaths = new Set(["package.json"]);
+for (const fileEntry of packageJson.files) {
+  for (const expandedEntry of expandPackageFileEntry(fileEntry)) {
+    expectedPackedPaths.add(toPackagePath(path.join(repoRoot, expandedEntry)));
+  }
+}
+assert.deepStrictEqual(
+  [...packedPaths].sort(),
+  [...expectedPackedPaths].sort(),
+  "npm pack output should match package.json files allowlist plus npm-required metadata"
+);
 for (const requiredPackedPath of [
   "bin/cts.js",
   "bin/validate-artifacts.js",
